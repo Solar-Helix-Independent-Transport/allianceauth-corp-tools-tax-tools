@@ -84,3 +84,14 @@ def get_tax_aggregates(request, days=90):
         )
 
     return output
+
+
+@api.get(
+    "corp/tax/history",
+    tags=["Corp Taxes"],
+)
+def get_tax_history(request, corp_id=98628563):
+    if not request.user.is_superuser:
+        return {}
+    t = models.CorpTaxHistory.find_corp_tax_changes(corp_id)
+    return t
