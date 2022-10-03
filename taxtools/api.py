@@ -1,4 +1,5 @@
 import logging
+from datetime import timedelta
 from typing import List
 
 from allianceauth.eveonline.models import EveCharacter
@@ -7,6 +8,7 @@ from corptools.providers import esi
 from corptools.schema import CharacterWalletEvent
 from corptools.task_helpers.corp_helpers import get_corp_token
 from django.conf import settings
+from django.utils import timezone
 from ninja import NinjaAPI
 from ninja.responses import codes_4xx
 from ninja.security import django_auth
@@ -61,14 +63,13 @@ def get_tax_data(request):
     "corp/tax/aggregates",
     tags=["Corp Taxes"],
 )
-def get_tax_aggregates(request):
+def get_tax_aggregates(request, days=90):
     if not request.user.is_superuser:
         return []
-
+    start = timezone.now() - timedelta(days=days)
     t = models.CorpPayoutTaxConfiguration.objects.all().first()
-    tx = t.get_aggregates()
+    tx = t.get_aggregates(start_date=start)
     output = []
-
     for w in tx:
         output.append(
             {
