@@ -104,3 +104,4 @@ class CorpTaxHistory(models.Model):
             if data['corpID'] == corp_id:
                 t = datetime.timestamp(n.timestamp)
                 changes[t] = {"rate": data['newTaxRate'], "date": n.timestamp}
+        return changes
