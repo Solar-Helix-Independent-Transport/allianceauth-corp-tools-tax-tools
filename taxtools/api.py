@@ -75,6 +75,9 @@ def get_tax_aggregates(request):
                 "character": w['char'],
                 "sum": w['sum_amount'],
                 "tax": w['tax_amount'],
+                "cnt": w['cnt_amount'],
+                "end": w['max_date'],
+                "start": w['min_date'],
                 "main": w['main'],
             }
         )

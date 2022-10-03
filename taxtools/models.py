@@ -6,7 +6,7 @@ from corptools.models import CharacterWalletJournalEntry, EveLocation, EveName
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import F, Sum
+from django.db.models import Count, F, Max, Min, Sum
 from esi.models import Token
 
 
@@ -43,11 +43,17 @@ class CorpPayoutTaxConfiguration(models.Model):
             char=F('character__character__character_id')
         ).annotate(
             sum_amount=Sum('amount'),
-            tax_amount=(Sum('amount')*(self.tax/100))
+            tax_amount=(Sum('amount')*(self.tax/100)),
+            cnt_amount=Count('amount'),
+            min_date=Min('date'),
+            max_date=Max('date'),
         ).values(
             'char',
             'sum_amount',
             'tax_amount',
+            'cnt_amount',
+            'max_date',
+            'min_date',
             main=F(
                 'character__character__character_ownership__user__profile__main_character__character_id')
         )
