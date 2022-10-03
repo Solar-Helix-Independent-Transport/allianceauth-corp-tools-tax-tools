@@ -4,6 +4,7 @@ from django.shortcuts import redirect, render
 from esi.decorators import token_required
 
 from . import __version__
+
 #from .models import GhostKickToken
 
 """

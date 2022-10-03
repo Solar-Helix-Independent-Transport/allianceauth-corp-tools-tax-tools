@@ -1,4 +1,5 @@
 import logging
+from typing import List
 
 from allianceauth.eveonline.models import EveCharacter
 from corptools.models import EveItemType, EveLocation
@@ -9,7 +10,6 @@ from django.conf import settings
 from ninja import NinjaAPI
 from ninja.responses import codes_4xx
 from ninja.security import django_auth
-from typing import List
 
 from . import models
 

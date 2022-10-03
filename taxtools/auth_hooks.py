@@ -25,6 +25,7 @@ def register_menu():
     return TaxDash()
 """
 
+
 @hooks.register('url_hook')
 def register_url():
     return UrlHook(urls, 'taxtools', r'^tax/')

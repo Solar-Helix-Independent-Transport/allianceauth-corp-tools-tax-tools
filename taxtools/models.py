@@ -1,13 +1,13 @@
+from datetime import datetime
 from email.policy import default
+
 from allianceauth.eveonline.models import EveAllianceInfo, EveCorporationInfo
-from corptools.models import CharacterWalletJournalEntry, EveLocation
+from corptools.models import CharacterWalletJournalEntry, EveLocation, EveName
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Sum, F
+from django.db.models import F, Sum
 from esi.models import Token
-from corptools.models import EveName
-from datetime import datetime
 
 
 class CorpPayoutTaxConfiguration(models.Model):
@@ -40,22 +40,25 @@ class CorpPayoutTaxConfiguration(models.Model):
 
     def get_aggregates(self, start_date=datetime.min, end_date=datetime.max):
         return self.get_payment_data(start_date, end_date).values(
-                char=F('character__character__character_id')
-            ).annotate(
-                sum_amount=Sum('amount'),
-                tax_amount=(Sum('amount')*(self.tax/100))
-            ).values(
-                'char',
-                'sum_amount',
-                'tax_amount',
-                main=F('character__character__character_ownership__user__profile__main_character__character_id')
-            )
+            char=F('character__character__character_id')
+        ).annotate(
+            sum_amount=Sum('amount'),
+            tax_amount=(Sum('amount')*(self.tax/100))
+        ).values(
+            'char',
+            'sum_amount',
+            'tax_amount',
+            main=F(
+                'character__character__character_ownership__user__profile__main_character__character_id')
+        )
+
 
 class CorpPayoutTaxRecord(models.Model):
     entry = models.ForeignKey(
         CharacterWalletJournalEntry, on_delete=models.CASCADE, related_name="taxed")
 
     processed = models.BooleanField(default=True)
+
 
 class CorpPayoutTaxHistory(models.Model):
     entry = models.ForeignKey(
