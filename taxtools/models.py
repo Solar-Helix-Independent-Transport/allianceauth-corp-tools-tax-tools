@@ -194,10 +194,13 @@ class CorpTaxPayoutTaxConfiguration(models.Model):
         trans_ids = set()
         for w in self.get_payment_data(start_date=start_date, end_date=end_date):
             if w.entry_id not in trans_ids:
-                trans_ids.add(w.entry_id)
                 cid = w.division.corporation.corporation.corporation_id
                 if cid not in tax_cache:
                     tax_cache[cid] = CorpTaxHistory.get_corp_tax_list(cid)
+                if not len(tax_cache[cid]):
+                    logger.debug(f"Corp: {cid} Has no tax data saved atm")
+                    continue
+                trans_ids.add(w.entry_id)
                 if cid not in output:
                     output[cid] = {
                         "characters": [],
