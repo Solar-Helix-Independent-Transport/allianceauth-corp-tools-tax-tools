@@ -95,3 +95,14 @@ def get_tax_history(request, corp_id=98628563):
         return {}
     t = models.CorpTaxHistory.find_corp_tax_changes(corp_id)
     return t
+
+
+@api.get(
+    "corp/tax/history/sync",
+    tags=["Corp Taxes"],
+)
+def sync_tax_history(request, corp_id=98628563):
+    if not request.user.is_superuser:
+        return []
+    t = models.CorpTaxHistory.sync_corp_tax_changes(corp_id)
+    return t

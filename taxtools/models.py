@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from email.policy import default
 
@@ -10,6 +11,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Count, F, Max, Min, Sum
 from esi.models import Token
+
+logger = logging.getLogger(__name__)
 
 
 class CorpPayoutTaxConfiguration(models.Model):
@@ -79,11 +82,14 @@ class CorpPayoutTaxHistory(models.Model):
 
 # CorpTaxChangeMsg
 class CorpTaxHistory(models.Model):
-    entry = models.ForeignKey(
+    corp = models.ForeignKey(
         EveCorporationInfo, on_delete=models.CASCADE)
 
     start_date = models.DateTimeField()
     tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=5.0)
+
+    class Meta:
+        unique_together = [['corp', 'start_date']]
 
     @classmethod  # TODO make a manager if i want to long term use this.
     def get_corp_tax_list(cls, corp_id):
@@ -98,7 +104,8 @@ class CorpTaxHistory(models.Model):
             notification_type="CorpTaxChangeMsg"
             # TODO date limit this depending on the last instance
         ).order_by(
-            'timestamp',
+            'timestamp',  # Notifications are "minute" accurate
+            # if 2 the same take the higher ID? hopefully...
             'notification_id'
         ).values(
             'notification_id',
@@ -116,3 +123,19 @@ class CorpTaxHistory(models.Model):
                               "date": n['timestamp']}
 
         return changes
+
+    @classmethod  # TODO make a manager if i want to long term use this.
+    def sync_corp_tax_changes(cls, corp_id):
+        corp = EveCorporationInfo.objects.get(corporation_id=corp_id)
+        taxes = cls.find_corp_tax_changes(corp_id)
+        db_models = []
+        for ts, t in taxes.items():
+            db_models.append(
+                cls(
+                    corp=corp,
+                    start_date=t['date'],
+                    tax_rate=t['rate']
+                )
+            )
+        created = cls.objects.bulk_create(db_models, ignore_conflicts=True)
+        return len(created)
