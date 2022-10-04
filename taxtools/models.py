@@ -97,17 +97,22 @@ class CorpTaxHistory(models.Model):
             character__character__corporation_id=corp_id,
             notification_type="CorpTaxChangeMsg"
             # TODO date limit this depending on the last instance
-        ).select_related(
-            'notification_text'
         ).order_by(
             'timestamp',
             'notification_id'
-        )
+        ).values(
+            'notification_id',
+            'timestamp',
+            'notification_text__notification_text'
+        ).distinct()
 
         changes = {}
+
         for n in notes:
-            data = yaml.safe_load(n.notification_text.notification_text)
+            data = yaml.safe_load(n['notification_text__notification_text'])
             if data['corpID'] == corp_id:
-                t = datetime.timestamp(n.timestamp)
-                changes[t] = {"rate": data['newTaxRate'], "date": n.timestamp}
+                t = datetime.timestamp(n['timestamp'])
+                changes[t] = {"rate": data['newTaxRate'],
+                              "date": n['timestamp']}
+
         return changes
