@@ -23,18 +23,19 @@ api = NinjaAPI(title="Tax Tools API", version="0.0.1",
 
 
 @api.get(
-    "corp/tax/list",
-    tags=["Corp Taxes"],
+    "char/tax/list",
+    tags=["Character Taxes"],
     response={200: List[CharacterWalletEvent]},
 )
-def get_tax_data(request):
+def get_char_tax_data(request, days=90, conf_id=1):
     if not request.user.is_superuser:
         return []
+    start = timezone.now() - timedelta(days=days)
 
-    t = models.CorpPayoutTaxConfiguration.objects.all().first()
+    t = models.CharacterPayoutTaxConfiguration.objects.get(id=conf_id)
 
     output = []
-    for w in t.get_payment_data():
+    for w in t.get_payment_data(start_date=start):
         output.append(
             {
                 "character": w.character.character,
@@ -60,14 +61,14 @@ def get_tax_data(request):
 
 
 @api.get(
-    "corp/tax/aggregates",
-    tags=["Corp Taxes"],
+    "char/tax/aggregates",
+    tags=["Character Taxes"],
 )
-def get_tax_aggregates(request, days=90):
+def get_char_tax_aggregates(request, days=90, conf_id=1):
     if not request.user.is_superuser:
         return []
     start = timezone.now() - timedelta(days=days)
-    t = models.CorpPayoutTaxConfiguration.objects.all().first()
+    t = models.CharacterPayoutTaxConfiguration.objects.get(id=conf_id)
     tx = t.get_aggregates(start_date=start)
     output = []
     for w in tx:
@@ -87,22 +88,80 @@ def get_tax_aggregates(request, days=90):
 
 
 @api.get(
-    "corp/tax/history",
-    tags=["Corp Taxes"],
+    "corp/{corp_id}/tax/history",
+    tags=["Corporation Helpers"],
 )
-def get_tax_history(request, corp_id=98628563):
+def get_tax_history(request, corp_id: int):
     if not request.user.is_superuser:
-        return {}
-    t = models.CorpTaxHistory.find_corp_tax_changes(corp_id)
-    return t
+        return []
+    return models.CorpTaxHistory.get_corp_tax_list(corp_id)
 
 
 @api.get(
-    "corp/tax/history/sync",
-    tags=["Corp Taxes"],
+    "corp/{corp_id}/tax/history/find",
+    tags=["Corporation Helpers"],
 )
-def sync_tax_history(request, corp_id=98628563):
+def find_tax_history(request, corp_id: int):
     if not request.user.is_superuser:
         return []
-    t = models.CorpTaxHistory.sync_corp_tax_changes(corp_id)
-    return t
+    return models.CorpTaxHistory.find_corp_tax_changes(corp_id)
+
+
+@api.get(
+    "corp/{corp_id}/tax/history/sync",
+    tags=["Corporation Helpers"],
+)
+def sync_tax_history(request, corp_id: int):
+    if not request.user.is_superuser:
+        return []
+    return models.CorpTaxHistory.sync_corp_tax_changes(corp_id)
+
+
+@api.get(
+    "corp/tax/list",
+    tags=["Corporation Taxes"],
+)
+def get_corp_tax_data(request, days=90, conf_id=1):
+    if not request.user.is_superuser:
+        return []
+    start = timezone.now() - timedelta(days=days)
+
+    t = models.CorpTaxPayoutTaxConfiguration.objects.get(id=conf_id)
+
+    output = []
+    for w in t.get_payment_data(start_date=start):
+        output.append(
+            {
+                "corporation": w.division.corporation.corporation.corporation_name,
+                "id": w.entry_id,
+                "date": w.date,
+                "first_party": {
+                    "id": w.first_party_id,
+                    "name": w.first_party_name.name,
+                    "cat": w.first_party_name.category,
+                },
+                "second_party":  {
+                    "id": w.second_party_id,
+                    "name": w.second_party_name.name,
+                    "cat": w.second_party_name.category,
+                },
+                "ref_type": w.ref_type,
+                "amount": w.amount,
+                "reason": w.reason,
+                "description": w.description,
+            })
+
+    return output
+
+
+@api.get(
+    "corp/tax/aggregates",
+    tags=["Corporation Taxes"],
+)
+def get_corp_tax_aggregates(request, days=90, conf_id=1):
+    if not request.user.is_superuser:
+        return []
+    start = timezone.now() - timedelta(days=days)
+    t = models.CorpTaxPayoutTaxConfiguration.objects.get(id=conf_id)
+    tx = t.get_aggregates(start_date=start)
+    return tx
