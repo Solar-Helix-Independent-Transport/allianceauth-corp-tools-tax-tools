@@ -196,10 +196,16 @@ class CorpTaxPayoutTaxConfiguration(models.Model):
             if w.entry_id not in trans_ids:
                 cid = w.division.corporation.corporation.corporation_id
                 if cid not in tax_cache:
-                    tax_cache[cid] = CorpTaxHistory.get_corp_tax_list(cid)
+                    # CorpTaxHistory.get_corp_tax_list(cid)
+                    tax_cache[cid] = []
+                rate = Decimal(10)
                 if not len(tax_cache[cid]):
-                    logger.debug(f"Corp: {cid} Has no tax data saved atm")
-                    continue
+                    logger.debug(
+                        f"Corp: {cid} Has no tax data saved atm defaulting to 10%")
+                else:
+                    rate = CorpTaxHistory.get_tax_rate(
+                        cid, w.date, tax_rates=tax_cache[cid])
+
                 trans_ids.add(w.entry_id)
                 if cid not in output:
                     output[cid] = {
@@ -213,8 +219,6 @@ class CorpTaxPayoutTaxConfiguration(models.Model):
                         "start": datetime.max.replace(tzinfo=timezone.utc)
                     }
 
-                rate = CorpTaxHistory.get_tax_rate(
-                    cid, w.date, tax_rates=tax_cache[cid])
                 total_value = w.amount/(Decimal(rate/100))
 
                 output[cid]["sum"] += w.amount
