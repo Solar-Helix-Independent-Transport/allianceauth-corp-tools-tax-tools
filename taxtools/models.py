@@ -188,13 +188,16 @@ class CorpTaxPayoutTaxConfiguration(models.Model):
             "second_party_name"
         )
 
-    def get_aggregates(self, start_date=datetime.min, end_date=datetime.max):
+    def get_aggregates(self, start_date=datetime.min, end_date=datetime.max, full=True):
         output = {}
+        tax_cache = {}
         trans_ids = set()
         for w in self.get_payment_data(start_date=start_date, end_date=end_date):
             if w.entry_id not in trans_ids:
                 trans_ids.add(w.entry_id)
                 cid = w.division.corporation.corporation.corporation_id
+                if cid not in tax_cache:
+                    tax_cache[cid] = CorpTaxHistory.get_corp_tax_list(cid)
                 if cid not in output:
                     output[cid] = {
                         "characters": [],
@@ -207,7 +210,8 @@ class CorpTaxPayoutTaxConfiguration(models.Model):
                         "start": datetime.max.replace(tzinfo=timezone.utc)
                     }
 
-                rate = CorpTaxHistory.get_tax_rate(cid, w.date)
+                rate = CorpTaxHistory.get_tax_rate(
+                    cid, w.date, tax_rates=tax_cache[cid])
                 total_value = w.amount/(Decimal(rate/100))
 
                 output[cid]["sum"] += w.amount
@@ -216,7 +220,8 @@ class CorpTaxPayoutTaxConfiguration(models.Model):
 
                 output[cid]["cnt"] += 1
 
-                output[cid]["trans_ids"].append(w.entry_id)
+                if full:
+                    output[cid]["trans_ids"].append(w.entry_id)
 
                 if w.second_party_name.name not in output[cid]["characters"]:
                     output[cid]["characters"].append(w.second_party_name.name)
