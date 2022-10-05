@@ -95,24 +95,22 @@ def get_char_tax_aggregate_groups(request, days=90, conf_id=1):
     if not request.user.is_superuser:
         return []
     start = timezone.now() - timedelta(days=days)
+    t = models.CharacterPayoutTaxConfiguration.objects.get(id=conf_id)
+    tx = t.get_aggregates(start_date=start)
 
-
-t = models.CharacterPayoutTaxConfiguration.objects.get(id=conf_id)
-tx = t.get_aggregates(start_date=start)
-
-output = {}
-for w in tx:
-    if w['corp'] not in output:
-        output[w['corp']] = {
-            "characters": [],
-            "sum": 0,
-            "tax": 0,
-            "cnt": 0,
-        }
-    # output[w['corp']]["characters"].append(w['char'])
-    output[w['corp']]["sum"] += w['sum_amount']
-    output[w['corp']]["tax"] += w['tax_amount']
-    output[w['corp']]["cnt"] += w['cnt_amount']
+    output = {}
+    for w in tx:
+        if w['corp'] not in output:
+            output[w['corp']] = {
+                "characters": [],
+                "sum": 0,
+                "tax": 0,
+                "cnt": 0,
+            }
+        output[w['corp']]["characters"].append(w['char'])
+        output[w['corp']]["sum"] += w['sum_amount']
+        output[w['corp']]["tax"] += w['tax_amount']
+        output[w['corp']]["cnt"] += w['cnt_amount']
 
     return output
 
