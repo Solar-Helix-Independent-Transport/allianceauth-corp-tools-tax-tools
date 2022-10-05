@@ -1,15 +1,19 @@
 import logging
+from calendar import c
 from datetime import datetime, timezone
 from decimal import Decimal
 from email.policy import default
 from typing import Dict
 
 import yaml
-from allianceauth.eveonline.models import EveAllianceInfo, EveCorporationInfo
+from allianceauth.authentication.models import State
+from allianceauth.eveonline.models import (EveAllianceInfo, EveCharacter,
+                                           EveCorporationInfo)
 from corptools.models import (CharacterWalletJournalEntry, CorporationAudit,
                               CorporationWalletJournalEntry, EveLocation,
                               EveName, Notification)
 from corptools.providers import esi
+from discord import annotations
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -264,3 +268,64 @@ class CorporatePayoutTaxRecord(models.Model):
         CorporationWalletJournalEntry, on_delete=models.CASCADE, related_name="taxed")
 
     processed = models.BooleanField(default=True)
+
+
+class CorpTaxPerMemberTaxConfiguration(models.Model):
+    state = models.ForeignKey(
+        State,
+        on_delete=models.CASCADE,
+    )
+
+    isk_per_main = models.IntegerField(default=20000000)
+
+    def __str__(self):
+        return self.state.name
+
+    def get_main_counts(self):
+        characters = EveCharacter.objects.filter(
+            character_ownership__user__profile__state=self.state,
+            character_id=F(
+                "character_ownership__user__profile__main_character__character_id")
+        ).values(
+            "character_ownership__user__profile__main_character__corporation_id"
+        ).annotate(
+            Count("character_id"),
+            corp_name=F(
+                "character_ownership__user__profile__main_character__corporation_name")
+        )
+        return characters
+
+    def get_invoice_data(self):
+        corp_list = self.get_main_counts()
+        corp_info = {}
+        output = {}
+        corps = EveCorporationInfo.objects.filter(corporation_id__in=corp_list.values_list(
+            "character_ownership__user__profile__main_character__corporation_id"))
+
+        for c in corps:
+            corp_info[c.corporation_id] = {
+                "ceo": c.ceo_id,
+                "members": c.member_count
+            }
+
+        for corp in corp_list:
+            cid = corp['character_ownership__user__profile__main_character__corporation_id']
+            output[cid] = {
+                "character_count": corp_info[cid]['members'],
+                "ceo": corp_info[cid]['ceo'],
+                "main_count": corp['character_id__count'],
+                "corp": corp['corp_name'],
+                "tax": corp['character_id__count'] * self.isk_per_main
+            }
+
+        return output
+
+    def get_invoice_stats(self):
+        corp_list = self.get_invoice_data()
+        output = {"corps": {}, "total": 0}
+
+        for key, corp in corp_list.items():
+            output['corps'][corp['corp']] = corp['main_count']
+            output['total'] += corp['tax']
+
+        return output

@@ -202,5 +202,44 @@ def get_corp_tax_aggregates(request, days=90, conf_id=1):
         return []
     start = timezone.now() - timedelta(days=days)
     t = models.CorpTaxPayoutTaxConfiguration.objects.get(id=conf_id)
-    tx = t.get_aggregates(start_date=start, full=False)
+    tx = t.get_aggregates(start_date=start, full=True)
+    return tx
+
+
+@api.get(
+    "corp/member/count",
+    tags=["Corporation Taxes"],
+)
+def get_corp_member_count(request, conf_id=1):
+    if not request.user.is_superuser:
+        return []
+    t = models.CorpTaxPerMemberTaxConfiguration.objects.get(id=conf_id)
+    tx = t.get_main_counts()
+    output = {}
+    for crp in tx:
+        output[crp['corp_name']] = crp['character_id__count']
+    return output
+
+
+@api.get(
+    "corp/member/tax",
+    tags=["Corporation Taxes"],
+)
+def get_corp_member_tax(request, conf_id=1):
+    if not request.user.is_superuser:
+        return []
+    t = models.CorpTaxPerMemberTaxConfiguration.objects.get(id=conf_id)
+    tx = t.get_invoice_data()
+    return tx
+
+
+@api.get(
+    "corp/member/tax/aggregate",
+    tags=["Corporation Taxes"],
+)
+def get_corp_member_tax__aggregates(request, conf_id=1):
+    if not request.user.is_superuser:
+        return []
+    t = models.CorpTaxPerMemberTaxConfiguration.objects.get(id=conf_id)
+    tx = t.get_invoice_stats()
     return tx

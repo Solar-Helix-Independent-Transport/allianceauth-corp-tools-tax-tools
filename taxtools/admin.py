@@ -13,3 +13,9 @@ class CharacterPayoutTaxConfigurationAdmin(admin.ModelAdmin):
 class CorpTaxPayoutTaxConfigurationAdmin(admin.ModelAdmin):
     # filter_horizontal = []
     autocomplete_fields = ['corporation']
+
+
+@admin.register(models.CorpTaxPerMemberTaxConfiguration)
+class CorpTaxPerMemberTaxConfigurationAdmin(admin.ModelAdmin):
+    # filter_horizontal = []
+    pass
