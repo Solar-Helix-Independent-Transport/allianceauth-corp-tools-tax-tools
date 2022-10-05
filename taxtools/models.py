@@ -65,6 +65,9 @@ class CharacterPayoutTaxConfiguration(models.Model):
             'min_date',
             main=F(
                 'character__character__character_ownership__user__profile__main_character__character_id'
+            ),
+            corp=F(
+                'character__character__character_ownership__user__profile__main_character__corporation_id'
             )
         )
 
