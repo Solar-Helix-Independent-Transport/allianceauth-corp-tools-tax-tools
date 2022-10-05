@@ -202,7 +202,7 @@ def get_corp_tax_aggregates(request, days=90, conf_id=1):
         return []
     start = timezone.now() - timedelta(days=days)
     t = models.CorpTaxPayoutTaxConfiguration.objects.get(id=conf_id)
-    tx = t.get_aggregates(start_date=start, full=True)
+    tx = t.get_aggregates(start_date=start, full=False)
     return tx
 
 
