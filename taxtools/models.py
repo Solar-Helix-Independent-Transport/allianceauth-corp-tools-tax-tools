@@ -51,9 +51,9 @@ class CharacterPayoutTaxConfiguration(models.Model):
         return self.get_payment_data(start_date, end_date).values(
             char=F('character__character__character_id')
         ).annotate(
-            sum_amount=Sum('amount', distinct=True),
-            tax_amount=(Sum('amount', distinct=True)*(self.tax/100)),
-            cnt_amount=Count('amount', distinct=True),
+            sum_amount=Sum('amount'),
+            tax_amount=(Sum('amount')*(self.tax/100)),
+            cnt_amount=Count('amount'),
             min_date=Min('date'),
             max_date=Max('date'),
         ).values(
