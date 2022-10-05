@@ -6,9 +6,10 @@ from typing import Dict
 
 import yaml
 from allianceauth.eveonline.models import EveAllianceInfo, EveCorporationInfo
-from corptools.models import (CharacterWalletJournalEntry,
+from corptools.models import (CharacterWalletJournalEntry, CorporationAudit,
                               CorporationWalletJournalEntry, EveLocation,
                               EveName, Notification)
+from corptools.providers import esi
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -148,11 +149,11 @@ class CorpTaxHistory(models.Model):
         return len(created)
 
     @classmethod
-    def get_tax_rate(cls, corp_id, date, tax_rates: list = None):
+    def get_tax_rate(cls, corp_id, date, tax_rates: list = None, default=10):
         if not tax_rates:
             tax_rates = cls.get_corp_tax_list(corp_id)
 
-        rate = 0
+        rate = 10
         # force it to be in order
         tax_rates.sort(key=lambda i: i['start_date'])
 
@@ -160,6 +161,14 @@ class CorpTaxHistory(models.Model):
             if tr['start_date'] < date:
                 rate = tr['tax_rate']
         return rate
+
+    @classmethod
+    def sync_all_corps(cls):
+        output = {}
+        for c in CorporationAudit.objects.all():
+            created = cls.sync_corp_tax_changes(c.corporation.corporation_id)
+            output[c.corporation.corporation_name] = created
+        return output
 
 
 class CorpTaxPayoutTaxConfiguration(models.Model):
@@ -196,21 +205,23 @@ class CorpTaxPayoutTaxConfiguration(models.Model):
             if w.entry_id not in trans_ids:
                 cid = w.division.corporation.corporation.corporation_id
                 if cid not in tax_cache:
-                    # CorpTaxHistory.get_corp_tax_list(cid)
-                    tax_cache[cid] = []
-                rate = Decimal(10)
-                if not len(tax_cache[cid]):
-                    logger.debug(
-                        f"Corp: {cid} Has no tax data saved atm defaulting to 10%")
-                else:
-                    rate = CorpTaxHistory.get_tax_rate(
-                        cid, w.date, tax_rates=tax_cache[cid])
+                    tax_cache[cid] = CorpTaxHistory.get_corp_tax_list(cid)
+                corp_details = esi.client.Corporation.get_corporations_corporation_id(
+                    corporation_id=cid
+                ).result()
+                current_rate = Decimal(
+                    corp_details.get('tax_rate', 0.1)
+                )
+                rate = CorpTaxHistory.get_tax_rate(
+                    cid, w.date, tax_rates=tax_cache[cid], default=current_rate*100)
 
                 trans_ids.add(w.entry_id)
                 if cid not in output:
                     output[cid] = {
                         "characters": [],
                         "trans_ids": [],
+                        "tax_rates_used": [],
+                        "tax_rates": tax_cache[cid],
                         "sum": 0,
                         "earn": 0,
                         "tax": 0,
@@ -230,12 +241,18 @@ class CorpTaxPayoutTaxConfiguration(models.Model):
                 if full:
                     output[cid]["trans_ids"].append(w.entry_id)
 
+                if rate not in output[cid]["tax_rates_used"]:
+                    output[cid]["tax_rates_used"].append(rate)
+
                 if w.second_party_name.name not in output[cid]["characters"]:
                     output[cid]["characters"].append(w.second_party_name.name)
+
                 if w.date < output[cid]["start"]:
                     output[cid]["start"] = w.date
+
                 if w.date > output[cid]["end"]:
                     output[cid]["end"] = w.date
+
         return output
 
 

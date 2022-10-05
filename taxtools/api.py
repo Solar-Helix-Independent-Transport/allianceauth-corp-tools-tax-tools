@@ -118,6 +118,16 @@ def sync_tax_history(request, corp_id: int):
 
 
 @api.get(
+    "corp/tax/history/sync/all",
+    tags=["Corporation Helpers"],
+)
+def sync_all_tax_histories(request):
+    if not request.user.is_superuser:
+        return {}
+    return models.CorpTaxHistory.sync_all_corps()
+
+
+@api.get(
     "corp/tax/list",
     tags=["Corporation Taxes"],
 )
@@ -149,7 +159,8 @@ def get_corp_tax_data(request, days=90, conf_id=1):
                 "amount": w.amount,
                 "reason": w.reason,
                 "description": w.description,
-            })
+            }
+        )
 
     return output
 
