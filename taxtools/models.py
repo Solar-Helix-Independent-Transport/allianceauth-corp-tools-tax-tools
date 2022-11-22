@@ -148,7 +148,7 @@ class CharacterPayoutTaxConfiguration(models.Model):
                     "start": datetime.max.replace(tzinfo=timezone.utc)
                 }
             output[cid]['characters'] += t['characters']
-            output[cid]['trans_ids'] += t['trans_ids']
+            #output[cid]['trans_ids'] += t['trans_ids']
             for tr in t['tax_rates_used']:
                 if tr not in output[cid]['tax_rates_used']:
                     output[cid]['tax_rates_used'].append(tr)
