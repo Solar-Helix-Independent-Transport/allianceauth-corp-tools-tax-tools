@@ -51,29 +51,117 @@ class CharacterPayoutTaxConfiguration(models.Model):
             first_party_name_id=self.corporation_id
         ).exclude(taxed__processed=True)
 
-    def get_aggregates(self, start_date=datetime.min, end_date=datetime.max):
-        return self.get_payment_data(start_date, end_date).values(
-            char=F('character__character__character_id')
-        ).annotate(
-            sum_amount=Sum('amount'),
-            tax_amount=(Sum('amount')*(self.tax/100)),
-            cnt_amount=Count('amount'),
-            min_date=Min('date'),
-            max_date=Max('date'),
-        ).values(
-            'char',
-            'sum_amount',
-            'tax_amount',
-            'cnt_amount',
-            'max_date',
-            'min_date',
+    def get_character_aggregates(self, start_date=datetime.min, end_date=datetime.max):
+        data = self.get_payment_data(start_date, end_date).values(
+            'amount',
+            'entry_id',
+            'date',
+            char=F('character__character__character_id'),
+            corp=F('character__character__corporation_id'),
+            char_name=F('character__character__character_name'),
             main=F(
                 'character__character__character_ownership__user__profile__main_character__character_id'
             ),
-            corp=F(
+            main_corp=F(
                 'character__character__character_ownership__user__profile__main_character__corporation_id'
             )
         )
+        output = {}
+        tax_cache = {}
+        trans_ids = set()
+
+        for d in data:
+            if d['entry_id'] not in trans_ids:
+                cid = d['char']
+                if d['main']:
+                    cid = d['main']
+                crpid = d['corp']
+                if crpid not in tax_cache:
+                    tax_cache[crpid] = CorpTaxHistory.get_corp_tax_list(crpid)
+                corp_details = esi.client.Corporation.get_corporations_corporation_id(
+                    corporation_id=crpid
+                ).result()
+                current_rate = Decimal(
+                    corp_details.get('tax_rate', 0.1)
+                )
+                rate = CorpTaxHistory.get_tax_rate(
+                    cid, d['date'], tax_rates=tax_cache[crpid], default=current_rate*100)
+
+                if cid not in output:
+                    output[cid] = {
+                        "characters": [],
+                        "corp": d['main_corp'],
+                        "trans_ids": [],
+                        "tax_rates_used": [],
+                        "sum_earn": 0,
+                        "pre_total": 0,
+                        "tax_to_pay": 0,
+                        "cnt": 0,
+                        "end": datetime.min.replace(tzinfo=timezone.utc),
+                        "start": datetime.max.replace(tzinfo=timezone.utc)
+                    }
+
+                try:
+                    total_value = d['amount']/(100-Decimal(rate))*100
+                except ZeroDivisionError:  # 100% tax
+                    total_value = d['amount']
+
+                output[cid]["sum_earn"] += d['amount']
+                output[cid]["pre_total"] += total_value
+                output[cid]["tax_to_pay"] += total_value*(self.tax/100)
+
+                output[cid]["cnt"] += 1
+
+                output[cid]["trans_ids"].append(d['entry_id'])
+
+                trans_ids.add(d['entry_id'])
+
+                if rate not in output[cid]["tax_rates_used"]:
+                    output[cid]["tax_rates_used"].append(rate)
+
+                if d['char_name'] not in output[cid]["characters"]:
+                    output[cid]["characters"].append(d['char_name'])
+
+                if d['date'] < output[cid]["start"]:
+                    output[cid]["start"] = d['date']
+
+                if d['date'] > output[cid]["end"]:
+                    output[cid]["end"] = d['date']
+
+        return output
+
+    def get_character_aggregates_corp_level(self, start_date=datetime.min, end_date=datetime.max):
+        data = self.get_character_aggregates(start_date, end_date)
+        output = {}
+        for id, t in data.items():
+            cid = t['corp']
+            if cid not in output:
+                output[cid] = {
+                    "characters": [],
+                    "trans_ids": [],
+                    "tax_rates_used": [],
+                    "sum_earn": 0,
+                    "pre_total": 0,
+                    "tax_to_pay": 0,
+                    "cnt": 0,
+                    "end": datetime.min.replace(tzinfo=timezone.utc),
+                    "start": datetime.max.replace(tzinfo=timezone.utc)
+                }
+            output[cid]['characters'] += t['characters']
+            output[cid]['trans_ids'] += t['trans_ids']
+            for tr in t['tax_rates_used']:
+                if tr not in output[cid]['tax_rates_used']:
+                    output[cid]['tax_rates_used'].append(tr)
+            output[cid]['sum_earn'] += t['sum_earn']
+            output[cid]['pre_total'] += t['pre_total']
+            output[cid]['tax_to_pay'] += t['tax_to_pay']
+            output[cid]['cnt'] += t['cnt']
+            if t['start'] < output[cid]["start"]:
+                output[cid]["start"] = t['start']
+
+            if t['end'] > output[cid]["end"]:
+                output[cid]["end"] = t['start']
+        return output
 
 
 class CharacterPayoutTaxRecord(models.Model):

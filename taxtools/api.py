@@ -69,22 +69,22 @@ def get_char_tax_aggregates(request, days=90, conf_id=1):
         return []
     start = timezone.now() - timedelta(days=days)
     t = models.CharacterPayoutTaxConfiguration.objects.get(id=conf_id)
-    tx = t.get_aggregates(start_date=start)
-    output = []
-    for w in tx:
-        output.append(
-            {
-                "character": w['char'],
-                "sum": w['sum_amount'],
-                "tax": w['tax_amount'],
-                "cnt": w['cnt_amount'],
-                "end": w['max_date'],
-                "start": w['min_date'],
-                "main": w['main'],
-            }
-        )
+    tx = t.get_character_aggregates(start_date=start)
 
-    return output
+    return tx
+
+
+@api.get(
+    "char/tax/aggregates/corp",
+    tags=["Character Taxes"],
+)
+def get_char_tax_aggregates_corp(request, days=90, conf_id=1):
+    if not request.user.is_superuser:
+        return []
+    start = timezone.now() - timedelta(days=days)
+    t = models.CharacterPayoutTaxConfiguration.objects.get(id=conf_id)
+    tx = t.get_character_aggregates_corp_level(start_date=start)
+    return tx
 
 
 @api.get(
