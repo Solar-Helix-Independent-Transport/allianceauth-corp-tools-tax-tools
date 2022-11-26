@@ -116,8 +116,12 @@ class CharacterPayoutTaxConfiguration(models.Model):
                     total_value = d['amount']/(100-Decimal(rate))*100
                 except (ZeroDivisionError, decimal.InvalidOperation):  # 100% tax
                     # take the tax amount from the transaction. This has been flakey tho. SO YMMV
-                    logger.debug(f"{rate}: {d}")
-                    total_value = d['tax']
+
+                    if d['tax']:
+                        total_value = d['tax']
+                    else:
+                        logger.debug(f"NO TAX or ISK Tax:{rate}% Data:{d}")
+                        total_value = decimal(0)
 
                 output[cid]["sum_earn"] += d['amount']
                 output[cid]["pre_tax_total"] += total_value
