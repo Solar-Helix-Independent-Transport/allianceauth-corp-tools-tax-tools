@@ -1,3 +1,4 @@
+import decimal
 import logging
 from calendar import c
 from datetime import datetime, timezone
@@ -113,8 +114,9 @@ class CharacterPayoutTaxConfiguration(models.Model):
 
                 try:
                     total_value = d['amount']/(100-Decimal(rate))*100
-                except ZeroDivisionError:  # 100% tax
+                except (ZeroDivisionError, decimal.InvalidOperation):  # 100% tax
                     # take the tax amount from the transaction. This has been flakey tho. SO YMMV
+                    logger.debug(f"{rate}: {d}")
                     total_value = d['tax']
 
                 output[cid]["sum_earn"] += d['amount']
