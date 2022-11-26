@@ -121,7 +121,7 @@ class CharacterPayoutTaxConfiguration(models.Model):
                         total_value = d['tax']
                     else:
                         logger.debug(f"NO TAX or ISK Tax:{rate}% Data:{d}")
-                        total_value = decimal(0)
+                        total_value = Decimal(0)
 
                 output[cid]["sum_earn"] += d['amount']
                 output[cid]["pre_tax_total"] += total_value
