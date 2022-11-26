@@ -44,9 +44,6 @@ class CharacterPayoutTaxConfiguration(models.Model):
 
     tax = models.DecimalField(max_digits=5, decimal_places=2, default=5.0)
 
-    def __str__(self):
-        return self.corporation.name
-
     class Meta:
         permissions = (
             ('access_tax_tools_ui', 'Can View Tax Tools UI'),
