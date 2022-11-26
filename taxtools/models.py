@@ -516,7 +516,12 @@ class CorpTaxConfiguration(models.Model):
     CorporateStructureTaxIncluded = models.ManyToManyField(
         CorpTaxPerServiceModuleConfiguration, blank=True)
 
-    def calculate_tax(self, start_date=datetime.min, end_date=datetime.max):
+    def calculate_tax(self, start_date=datetime.min, end_date=datetime.max, alliance_filter=None):
+        corps = []
+        if alliance_filter:
+            corps = esi.client.Alliance.get_alliances_alliance_id_corporations(
+                alliance_id=alliance_filter).results()
+
         tax_invoices = {}
         output = {
             "char_tax": [],
@@ -530,6 +535,9 @@ class CorpTaxConfiguration(models.Model):
                 start_date=start_date, end_date=end_date)
             output["char_tax"].append(_taxes)
             for cid, data in _taxes.items():
+                if alliance_filter:
+                    if cid not in corps:
+                        continue
                 if cid not in tax_invoices:
                     tax_invoices[cid] = {
                         "total_tax": 0,
@@ -544,6 +552,9 @@ class CorpTaxConfiguration(models.Model):
                 start_date=start_date, end_date=end_date)
             output["corp_tax"].append(_taxes)
             for cid, data in _taxes.items():
+                if alliance_filter:
+                    if cid not in corps:
+                        continue
                 if cid not in tax_invoices:
                     tax_invoices[cid] = {
                         "total_tax": 0,
@@ -557,6 +568,9 @@ class CorpTaxConfiguration(models.Model):
             _taxes = tax.get_invoice_data()
             output["corp_member_tax"].append(_taxes)
             for cid, data in _taxes.items():
+                if alliance_filter:
+                    if cid not in corps:
+                        continue
                 if cid not in tax_invoices:
                     tax_invoices[cid] = {
                         "total_tax": 0,

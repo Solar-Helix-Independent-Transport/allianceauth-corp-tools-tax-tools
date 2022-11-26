@@ -249,11 +249,11 @@ def get_corp_member_tax__aggregates(request, conf_id=1):
     "global/corp/tax/aggregates",
     tags=["Global Taxes"],
 )
-def get_global_corp_taxes(request, days=90, conf_id=1):
+def get_global_corp_taxes(request, days=90, conf_id=1, alli_filter: int = None):
     if not request.user.is_superuser:
         return []
     start = timezone.now() - timedelta(days=days)
     t = models.CorpTaxConfiguration.objects.get(id=conf_id)
-    tx = t.calculate_tax(start_date=start)
+    tx = t.calculate_tax(start_date=start, alliance_filter=alli_filter)
 
     return tx
