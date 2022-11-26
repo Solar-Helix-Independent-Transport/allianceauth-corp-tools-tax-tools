@@ -243,3 +243,17 @@ def get_corp_member_tax__aggregates(request, conf_id=1):
     t = models.CorpTaxPerMemberTaxConfiguration.objects.get(id=conf_id)
     tx = t.get_invoice_stats()
     return tx
+
+
+@api.get(
+    "global/corp/tax/aggregates",
+    tags=["Global Taxes"],
+)
+def get_global_corp_taxes(request, days=90, conf_id=1):
+    if not request.user.is_superuser:
+        return []
+    start = timezone.now() - timedelta(days=days)
+    t = models.CorpTaxConfiguration.objects.get(id=conf_id)
+    tx = t.calculate_tax(start_date=start)
+
+    return tx

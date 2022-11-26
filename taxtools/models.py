@@ -11,7 +11,8 @@ from allianceauth.eveonline.models import (EveAllianceInfo, EveCharacter,
                                            EveCorporationInfo)
 from corptools.models import (CharacterWalletJournalEntry, CorporationAudit,
                               CorporationWalletJournalEntry, EveLocation,
-                              EveName, Notification)
+                              EveName, MapRegion, Notification,
+                              StructureService)
 from corptools.providers import esi
 from discord import annotations
 from django.contrib.auth.models import User
@@ -22,13 +23,20 @@ from esi.models import Token
 
 logger = logging.getLogger(__name__)
 
+MIN_DATE = datetime.min.replace(tzinfo=timezone.utc)
+MAX_DATE = datetime.max.replace(tzinfo=timezone.utc)
+
 
 class CharacterPayoutTaxConfiguration(models.Model):
+    name = models.CharField(max_length=50)
 
     corporation = models.ForeignKey(
         EveName,
         on_delete=models.CASCADE,
         limit_choices_to={'category': "corporation"},
+        blank=True,
+        null=True,
+        default=None
     )
 
     wallet_transaction_type = models.CharField(max_length=150)
@@ -43,19 +51,21 @@ class CharacterPayoutTaxConfiguration(models.Model):
             ('access_tax_tools_ui', 'Can View Tax Tools UI'),
         )
 
-    def get_payment_data(self, start_date=datetime.min, end_date=datetime.max):
+    def get_payment_data(self, start_date=MIN_DATE, end_date=MAX_DATE):
+        ref_types = self.wallet_transaction_type.split(",")
         return CharacterWalletJournalEntry.objects.filter(
             date__gte=start_date,
             date__lte=end_date,
-            ref_type=self.wallet_transaction_type,
+            ref_type__in=ref_types,
             first_party_name_id=self.corporation_id
         ).exclude(taxed__processed=True)
 
-    def get_character_aggregates(self, start_date=datetime.min, end_date=datetime.max):
+    def get_character_aggregates(self, start_date=MIN_DATE, end_date=MAX_DATE):
         data = self.get_payment_data(start_date, end_date).values(
             'amount',
             'entry_id',
             'date',
+            'tax',
             char=F('character__character__character_id'),
             corp=F('character__character__corporation_id'),
             char_name=F('character__character__character_name'),
@@ -94,20 +104,21 @@ class CharacterPayoutTaxConfiguration(models.Model):
                         "trans_ids": [],
                         "tax_rates_used": [],
                         "sum_earn": 0,
-                        "pre_total": 0,
+                        "pre_tax_total": 0,
                         "tax_to_pay": 0,
                         "cnt": 0,
-                        "end": datetime.min.replace(tzinfo=timezone.utc),
-                        "start": datetime.max.replace(tzinfo=timezone.utc)
+                        "end": MIN_DATE,
+                        "start": MAX_DATE
                     }
 
                 try:
                     total_value = d['amount']/(100-Decimal(rate))*100
                 except ZeroDivisionError:  # 100% tax
-                    total_value = d['amount']
+                    # take the tax amount from the transaction. This has been flakey tho. SO YMMV
+                    total_value = d['tax']
 
                 output[cid]["sum_earn"] += d['amount']
-                output[cid]["pre_total"] += total_value
+                output[cid]["pre_tax_total"] += total_value
                 output[cid]["tax_to_pay"] += total_value*(self.tax/100)
 
                 output[cid]["cnt"] += 1
@@ -130,7 +141,7 @@ class CharacterPayoutTaxConfiguration(models.Model):
 
         return output
 
-    def get_character_aggregates_corp_level(self, start_date=datetime.min, end_date=datetime.max):
+    def get_character_aggregates_corp_level(self, start_date=MIN_DATE, end_date=MAX_DATE, full=False):
         data = self.get_character_aggregates(start_date, end_date)
         output = {}
         for id, t in data.items():
@@ -141,19 +152,20 @@ class CharacterPayoutTaxConfiguration(models.Model):
                     "trans_ids": [],
                     "tax_rates_used": [],
                     "sum_earn": 0,
-                    "pre_total": 0,
+                    "pre_tax_total": 0,
                     "tax_to_pay": 0,
                     "cnt": 0,
-                    "end": datetime.min.replace(tzinfo=timezone.utc),
-                    "start": datetime.max.replace(tzinfo=timezone.utc)
+                    "end": MIN_DATE,
+                    "start": MAX_DATE
                 }
             output[cid]['characters'] += t['characters']
-            #output[cid]['trans_ids'] += t['trans_ids']
+            if full:
+                output[cid]['trans_ids'] += t['trans_ids']
             for tr in t['tax_rates_used']:
                 if tr not in output[cid]['tax_rates_used']:
                     output[cid]['tax_rates_used'].append(tr)
             output[cid]['sum_earn'] += t['sum_earn']
-            output[cid]['pre_total'] += t['pre_total']
+            output[cid]['pre_tax_total'] += t['pre_tax_total']
             output[cid]['tax_to_pay'] += t['tax_to_pay']
             output[cid]['cnt'] += t['cnt']
             if t['start'] < output[cid]["start"]:
@@ -169,14 +181,6 @@ class CharacterPayoutTaxRecord(models.Model):
         CharacterWalletJournalEntry, on_delete=models.CASCADE, related_name="taxed")
 
     processed = models.BooleanField(default=True)
-
-
-class CharacterPayoutTaxHistory(models.Model):
-    entry = models.ForeignKey(
-        CharacterPayoutTaxConfiguration, on_delete=models.CASCADE)
-
-    start_date = models.DateTimeField()
-    end_date = models.DateTimeField()
 
 
 # CorpTaxChangeMsg
@@ -248,13 +252,15 @@ class CorpTaxHistory(models.Model):
         if not tax_rates:
             tax_rates = cls.get_corp_tax_list(corp_id)
 
-        rate = 10
+        rate = default
         # force it to be in order
         tax_rates.sort(key=lambda i: i['start_date'])
 
         for tr in tax_rates:
             if tr['start_date'] < date:
                 rate = tr['tax_rate']
+            else:
+                break
         return rate
 
     @classmethod
@@ -267,10 +273,15 @@ class CorpTaxHistory(models.Model):
 
 
 class CorpTaxPayoutTaxConfiguration(models.Model):
+    name = models.CharField(max_length=50)
+
     corporation = models.ForeignKey(
         EveName,
         on_delete=models.CASCADE,
         limit_choices_to={'category': "corporation"},
+        blank=True,
+        null=True,
+        default=None
     )
 
     wallet_transaction_type = models.CharField(max_length=150)
@@ -317,19 +328,19 @@ class CorpTaxPayoutTaxConfiguration(models.Model):
                         "trans_ids": [],
                         "tax_rates_used": [],
                         "tax_rates": tax_cache[cid],
-                        "sum": 0,
-                        "earn": 0,
-                        "tax": 0,
+                        "sum_earn": 0,
+                        "pre_tax_total": 0,
+                        "tax_to_pay": 0,
                         "cnt": 0,
-                        "end": datetime.min.replace(tzinfo=timezone.utc),
-                        "start": datetime.max.replace(tzinfo=timezone.utc)
+                        "end": MIN_DATE,
+                        "start": MAX_DATE
                     }
 
                 total_value = w.amount/(Decimal(rate/100))
 
-                output[cid]["sum"] += w.amount
-                output[cid]["earn"] += total_value
-                output[cid]["tax"] += total_value*(self.tax/100)
+                output[cid]["sum_earn"] += w.amount
+                output[cid]["pre_tax_total"] += total_value
+                output[cid]["tax_to_pay"] += total_value*(self.tax/100)
 
                 output[cid]["cnt"] += 1
 
@@ -398,14 +409,14 @@ class CorpTaxPerMemberTaxConfiguration(models.Model):
 
         for corp in corp_list:
             cid = corp['character_ownership__user__profile__main_character__corporation_id']
-            output[cid] = {
-                "character_count": corp_info[cid]['members'],
-                "ceo": corp_info[cid]['ceo'],
-                "main_count": corp['character_id__count'],
-                "corp": corp['corp_name'],
-                "tax": corp['character_id__count'] * self.isk_per_main
-            }
-
+            if cid in corp_info:
+                output[cid] = {
+                    "character_count": corp_info[cid]['members'],
+                    "ceo": corp_info[cid]['ceo'],
+                    "main_count": corp['character_id__count'],
+                    "corp": corp['corp_name'],
+                    "tax_to_pay": corp['character_id__count'] * self.isk_per_main
+                }
         return output
 
     def get_invoice_stats(self):
@@ -417,3 +428,144 @@ class CorpTaxPerMemberTaxConfiguration(models.Model):
             output['total'] += corp['tax']
 
         return output
+
+
+class CorpTaxPerServiceModuleConfiguration(models.Model):
+    isk_per_service = models.IntegerField(default=20000000)
+
+    module_filters = models.TextField()
+
+    region_filter = models.ForeignKey(
+        MapRegion, on_delete=models.CASCADE, null=True, blank=True, default=None)
+
+    def get_service_counts(self):  # TODO update
+        characters = EveCharacter.objects.filter(
+            character_ownership__user__profile__state=self.state,
+            character_id=F(
+                "character_ownership__user__profile__main_character__character_id")
+        ).values(
+            "character_ownership__user__profile__main_character__corporation_id"
+        ).annotate(
+            Count("character_id"),
+            corp_name=F(
+                "character_ownership__user__profile__main_character__corporation_name")
+        )
+        return characters
+
+    def get_invoice_data(self):  # TODO update
+        corp_list = self.get_main_counts()
+        corp_info = {}
+        output = {}
+        corps = EveCorporationInfo.objects.filter(corporation_id__in=corp_list.values_list(
+            "character_ownership__user__profile__main_character__corporation_id"))
+
+        for c in corps:
+            corp_info[c.corporation_id] = {
+                "ceo": c.ceo_id,
+                "members": c.member_count
+            }
+
+        for corp in corp_list:
+            cid = corp['character_ownership__user__profile__main_character__corporation_id']
+            output[cid] = {
+                "character_count": corp_info[cid]['members'],
+                "ceo": corp_info[cid]['ceo'],
+                "main_count": corp['character_id__count'],
+                "corp": corp['corp_name'],
+                "tax_to_pay": corp['character_id__count'] * self.isk_per_main
+            }
+
+        return output
+
+    def get_invoice_stats(self):
+        corp_list = self.get_invoice_data()
+        output = {"corps": {}, "total": 0}
+
+        for key, corp in corp_list.items():
+            output['corps'][corp['corp']] = corp['main_count']
+            output['total'] += corp['tax_to_pay']
+
+        return output
+
+
+class CorpTaxRecord(models.Model):
+    Name = models.CharField(max_length=50)
+    JsonDump = models.TextField()
+    TotalTax = models.DecimalField(
+        max_digits=20, decimal_places=2, null=True, default=None)
+    TotalCharacterEarnings = models.DecimalField(
+        max_digits=20, decimal_places=2, null=True, default=None)
+    TotalCorporateEarnings = models.DecimalField(
+        max_digits=20, decimal_places=2, null=True, default=None)
+
+
+class CorpTaxConfiguration(models.Model):
+    Name = models.CharField(max_length=50)
+
+    CharacterTaxesIncluded = models.ManyToManyField(
+        CharacterPayoutTaxConfiguration, blank=True)
+    CorporateTaxesIncluded = models.ManyToManyField(
+        CorpTaxPayoutTaxConfiguration, blank=True)
+    CorporateMemberTaxIncluded = models.ManyToManyField(
+        CorpTaxPerMemberTaxConfiguration, blank=True)
+    CorporateStructureTaxIncluded = models.ManyToManyField(
+        CorpTaxPerServiceModuleConfiguration, blank=True)
+
+    def calculate_tax(self, start_date=datetime.min, end_date=datetime.max):
+        tax_invoices = {}
+        output = {
+            "char_tax": [],
+            "corp_tax": [],
+            "corp_member_tax": [],
+            "corp_structure_tax": [],
+            "total_tax": 0
+        }
+        for tax in self.CharacterTaxesIncluded.all():
+            _taxes = tax.get_character_aggregates_corp_level(
+                start_date=start_date, end_date=end_date)
+            output["char_tax"].append(_taxes)
+            for cid, data in _taxes.items():
+                if cid not in tax_invoices:
+                    tax_invoices[cid] = {
+                        "total_tax": 0,
+                        "messages": [],
+                    }
+                tax_invoices[cid]['total_tax'] += data['tax_to_pay']
+                tax_invoices[cid]['messages'].append(
+                    f"{tax.name}: {data['tax_to_pay']:,.2f} ({tax.tax:,.1f}% of Total Earnings)")
+
+        for tax in self.CorporateTaxesIncluded.all():
+            _taxes = tax.get_aggregates(
+                start_date=start_date, end_date=end_date)
+            output["corp_tax"].append(_taxes)
+            for cid, data in _taxes.items():
+                if cid not in tax_invoices:
+                    tax_invoices[cid] = {
+                        "total_tax": 0,
+                        "messages": [],
+                    }
+                tax_invoices[cid]['total_tax'] += data['tax_to_pay']
+                tax_invoices[cid]['messages'].append(
+                    f"{tax.name}: {data['tax_to_pay']:,.2f} ({tax.tax:,.1f}% of Total Earnings)")
+
+        for tax in self.CorporateMemberTaxIncluded.all():
+            _taxes = tax.get_invoice_data()
+            output["corp_member_tax"].append(_taxes)
+            for cid, data in _taxes.items():
+                if cid not in tax_invoices:
+                    tax_invoices[cid] = {
+                        "total_tax": 0,
+                        "messages": [],
+                    }
+                tax_invoices[cid]['total_tax'] += data['tax_to_pay']
+                tax_invoices[cid]['messages'].append(
+                    f"Main Character Tax: {data['main_count']} Mains @ {tax.isk_per_main:,} Per")
+
+        # for tax in self.CorporateStructureTaxIncluded.all():
+        #    _taxes = tax.get_invoice_data()
+        #    output["corp_structure_tax"].append(_taxes)
+
+        return {"taxes": tax_invoices, "raw": output}
+
+    def send_invoices(self):
+        pass

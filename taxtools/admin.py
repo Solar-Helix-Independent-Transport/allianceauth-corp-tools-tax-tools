@@ -7,17 +7,23 @@ from . import models
 class CharacterPayoutTaxConfigurationAdmin(admin.ModelAdmin):
     # filter_horizontal = []
     autocomplete_fields = ['corporation']
-    list_display = ['corporation', 'wallet_transaction_type', 'tax']
+    list_display = ['name', 'corporation', 'wallet_transaction_type', 'tax']
 
 
 @admin.register(models.CorpTaxPayoutTaxConfiguration)
 class CorpTaxPayoutTaxConfigurationAdmin(admin.ModelAdmin):
     # filter_horizontal = []
     autocomplete_fields = ['corporation']
-    list_display = ['corporation', 'wallet_transaction_type', 'tax']
+    list_display = ['name', 'corporation', 'wallet_transaction_type', 'tax']
 
 
 @admin.register(models.CorpTaxPerMemberTaxConfiguration)
 class CorpTaxPerMemberTaxConfigurationAdmin(admin.ModelAdmin):
     # filter_horizontal = []
     list_display = ['state', 'isk_per_main']
+
+
+@admin.register(models.CorpTaxConfiguration)
+class CorpTaxConfigurationAdmin(admin.ModelAdmin):
+    filter_horizontal = ["CharacterTaxesIncluded", "CorporateTaxesIncluded",
+                         "CorporateMemberTaxIncluded", "CorporateStructureTaxIncluded"]
