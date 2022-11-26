@@ -54,12 +54,14 @@ class CharacterPayoutTaxConfiguration(models.Model):
 
     def get_payment_data(self, start_date=MIN_DATE, end_date=MAX_DATE):
         ref_types = self.wallet_transaction_type.split(",")
-        return CharacterWalletJournalEntry.objects.filter(
+        query = CharacterWalletJournalEntry.objects.filter(
             date__gte=start_date,
             date__lte=end_date,
-            ref_type__in=ref_types,
-            first_party_name_id=self.corporation_id
-        ).exclude(taxed__processed=True)
+            ref_type__in=ref_types)
+        if self.corporation_id:
+            query = query.filter(first_party_name_id=self.corporation_id)
+
+        return query.exclude(taxed__processed=True)
 
     def get_character_aggregates(self, start_date=MIN_DATE, end_date=MAX_DATE):
         data = self.get_payment_data(start_date, end_date).values(
