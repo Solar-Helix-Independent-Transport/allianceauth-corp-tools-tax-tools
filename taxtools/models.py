@@ -49,7 +49,7 @@ class CharacterPayoutTaxConfiguration(models.Model):
             ('access_tax_tools_ui', 'Can View Tax Tools UI'),
         )
 
-    def get_payment_data(self, start_date=MIN_DATE, end_date=MAX_DATE):
+    def get_payment_data(self, start_date=MIN_DATE, end_date=MAX_DATE, alliance_filter=None):
         ref_types = self.wallet_transaction_type.split(",")
         query = CharacterWalletJournalEntry.objects.filter(
             date__gte=start_date,
@@ -57,11 +57,13 @@ class CharacterPayoutTaxConfiguration(models.Model):
             ref_type__in=ref_types)
         if self.corporation_id:
             query = query.filter(first_party_name_id=self.corporation_id)
-
+        if alliance_filter:
+            query = query.filter(
+                character__character__character_ownership__user__profile__main_character__alliance_id=alliance_filter)
         return query.exclude(taxed__processed=True)
 
-    def get_character_aggregates(self, start_date=MIN_DATE, end_date=MAX_DATE):
-        data = self.get_payment_data(start_date, end_date).values(
+    def get_character_aggregates(self, start_date=MIN_DATE, end_date=MAX_DATE, alliance_filter=None):
+        data = self.get_payment_data(start_date, end_date, alliance_filter).values(
             'amount',
             'entry_id',
             'date',
@@ -146,8 +148,9 @@ class CharacterPayoutTaxConfiguration(models.Model):
 
         return output
 
-    def get_character_aggregates_corp_level(self, start_date=MIN_DATE, end_date=MAX_DATE, full=False):
-        data = self.get_character_aggregates(start_date, end_date)
+    def get_character_aggregates_corp_level(self, start_date=MIN_DATE, end_date=MAX_DATE, full=False, alliance_filter=None):
+        data = self.get_character_aggregates(
+            start_date, end_date, alliance_filter)
         output = {}
         for id, t in data.items():
             cid = t['corp']
@@ -296,7 +299,7 @@ class CorpTaxPayoutTaxConfiguration(models.Model):
     def __str__(self):
         return self.corporation.name
 
-    def get_payment_data(self, start_date=datetime.min, end_date=datetime.max):
+    def get_payment_data(self, start_date=datetime.min, end_date=datetime.max, alliance_filter=None):
         return CorporationWalletJournalEntry.objects.filter(
             date__gte=start_date,
             date__lte=end_date,
@@ -308,7 +311,7 @@ class CorpTaxPayoutTaxConfiguration(models.Model):
             "second_party_name"
         )
 
-    def get_aggregates(self, start_date=datetime.min, end_date=datetime.max, full=True):
+    def get_aggregates(self, start_date=datetime.min, end_date=datetime.max, full=True, alliance_filter=None):
         output = {}
         tax_cache = {}
         trans_ids = set()
@@ -518,9 +521,6 @@ class CorpTaxConfiguration(models.Model):
 
     def calculate_tax(self, start_date=datetime.min, end_date=datetime.max, alliance_filter=None):
         corps = []
-        if alliance_filter:
-            corps = esi.client.Alliance.get_alliances_alliance_id_corporations(
-                alliance_id=alliance_filter).results()
 
         tax_invoices = {}
         output = {
@@ -532,12 +532,9 @@ class CorpTaxConfiguration(models.Model):
         }
         for tax in self.CharacterTaxesIncluded.all():
             _taxes = tax.get_character_aggregates_corp_level(
-                start_date=start_date, end_date=end_date)
+                start_date=start_date, end_date=end_date, alliance_filter=alliance_filter)
             output["char_tax"].append(_taxes)
             for cid, data in _taxes.items():
-                if alliance_filter:
-                    if cid not in corps:
-                        continue
                 if cid not in tax_invoices:
                     tax_invoices[cid] = {
                         "total_tax": 0,
@@ -549,12 +546,9 @@ class CorpTaxConfiguration(models.Model):
 
         for tax in self.CorporateTaxesIncluded.all():
             _taxes = tax.get_aggregates(
-                start_date=start_date, end_date=end_date)
+                start_date=start_date, end_date=end_date, alliance_filter=alliance_filter)
             output["corp_tax"].append(_taxes)
             for cid, data in _taxes.items():
-                if alliance_filter:
-                    if cid not in corps:
-                        continue
                 if cid not in tax_invoices:
                     tax_invoices[cid] = {
                         "total_tax": 0,
@@ -568,9 +562,6 @@ class CorpTaxConfiguration(models.Model):
             _taxes = tax.get_invoice_data()
             output["corp_member_tax"].append(_taxes)
             for cid, data in _taxes.items():
-                if alliance_filter:
-                    if cid not in corps:
-                        continue
                 if cid not in tax_invoices:
                     tax_invoices[cid] = {
                         "total_tax": 0,
