@@ -12,7 +12,7 @@ from allianceauth.eveonline.models import (EveAllianceInfo, EveCharacter,
                                            EveCorporationInfo)
 from corptools.models import (CharacterWalletJournalEntry, CorporationAudit,
                               CorporationWalletJournalEntry, EveLocation,
-                              EveName, MapRegion, Notification,
+                              EveName, MapRegion, Notification, Structure,
                               StructureService)
 from corptools.providers import esi
 from discord import annotations
@@ -443,44 +443,34 @@ class CorpTaxPerServiceModuleConfiguration(models.Model):
 
     module_filters = models.TextField()
 
-    region_filter = models.ForeignKey(
-        MapRegion, on_delete=models.CASCADE, null=True, blank=True, default=None)
+    region_filter = models.ManyToManyField(MapRegion, blank=True)
 
     def get_service_counts(self):  # TODO update
-        characters = EveCharacter.objects.filter(
-            character_ownership__user__profile__state=self.state,
-            character_id=F(
-                "character_ownership__user__profile__main_character__character_id")
-        ).values(
-            "character_ownership__user__profile__main_character__corporation_id"
-        ).annotate(
-            Count("character_id"),
-            corp_name=F(
-                "character_ownership__user__profile__main_character__corporation_name")
+        services = self.module_filters.split(",")
+        structure_services = StructureService.objects.filter(
+            name__in=services
         )
-        return characters
+        structures = Structure.objects.filter(
+            pk__in=structure_services.values_list("structure_id")
+        )
+        if self.region_filter.count() > 0:
+            structures = structures.filter(
+                system_name__constellation__region__in=self.region_filter.all())
+
+        structures = structures.values(corp=F("corporation__corporation__corporation_id")).distinct().annotate(
+            total_structures=Count("structure_id"),
+        )
+        return structures
 
     def get_invoice_data(self):  # TODO update
-        corp_list = self.get_main_counts()
-        corp_info = {}
+        corp_list = self.get_service_counts()
         output = {}
-        corps = EveCorporationInfo.objects.filter(corporation_id__in=corp_list.values_list(
-            "character_ownership__user__profile__main_character__corporation_id"))
-
-        for c in corps:
-            corp_info[c.corporation_id] = {
-                "ceo": c.ceo_id,
-                "members": c.member_count
-            }
 
         for corp in corp_list:
-            cid = corp['character_ownership__user__profile__main_character__corporation_id']
+            cid = corp['corp']
             output[cid] = {
-                "character_count": corp_info[cid]['members'],
-                "ceo": corp_info[cid]['ceo'],
-                "main_count": corp['character_id__count'],
-                "corp": corp['corp_name'],
-                "tax_to_pay": corp['character_id__count'] * self.isk_per_main
+                "services_count": corp['total_structures'],
+                "tax_to_pay": corp['total_structures'] * self.isk_per_service
             }
 
         return output
@@ -490,7 +480,7 @@ class CorpTaxPerServiceModuleConfiguration(models.Model):
         output = {"corps": {}, "total": 0}
 
         for key, corp in corp_list.items():
-            output['corps'][corp['corp']] = corp['main_count']
+            output['corps'][key] = corp['services_count']
             output['total'] += corp['tax_to_pay']
 
         return output

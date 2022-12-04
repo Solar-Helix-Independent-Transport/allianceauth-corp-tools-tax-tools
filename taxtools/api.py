@@ -257,3 +257,15 @@ def get_global_corp_taxes(request, days=90, conf_id=1, alli_filter: int = None):
     tx = t.calculate_tax(start_date=start, alliance_filter=alli_filter)
 
     return tx
+
+
+@api.get(
+    "corp/structure/tax",
+    tags=["Corporation Taxes"],
+)
+def get_corp_structure_tax(request, conf_id=1):
+    if not request.user.is_superuser:
+        return []
+    t = models.CorpTaxPerServiceModuleConfiguration.objects.get(id=conf_id)
+    tx = t.get_invoice_stats()
+    return tx
