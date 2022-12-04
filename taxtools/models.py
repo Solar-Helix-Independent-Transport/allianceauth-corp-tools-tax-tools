@@ -50,7 +50,7 @@ class CharacterPayoutTaxConfiguration(models.Model):
         )
 
     def __str__(self) -> str:
-        return F"{self.name}: {self.tax:,.2f} of {self.wallet_transaction_type} from {self.corporation.name}"
+        return F"{self.name}: {self.tax:,.2f} of {self.wallet_transaction_type} from {self.corporation.corporation_name}"
 
     def get_payment_data(self, start_date=MIN_DATE, end_date=MAX_DATE, alliance_filter=None):
         ref_types = self.wallet_transaction_type.split(",")
@@ -300,7 +300,7 @@ class CorpTaxPayoutTaxConfiguration(models.Model):
     tax = models.DecimalField(max_digits=5, decimal_places=2, default=5.0)
 
     def __str__(self) -> str:
-        return F"{self.name}: {self.tax:,.2f} of {self.wallet_transaction_type} from {self.corporation.name}"
+        return F"{self.name}: {self.tax:,.2f} of {self.wallet_transaction_type} from {self.corporation.corporation_name}"
 
     def get_payment_data(self, start_date=datetime.min, end_date=datetime.max, alliance_filter=None):
         return CorporationWalletJournalEntry.objects.filter(
