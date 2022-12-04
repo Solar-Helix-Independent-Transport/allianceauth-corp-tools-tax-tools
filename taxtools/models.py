@@ -534,15 +534,17 @@ class CorpTaxConfiguration(models.Model):
             output["char_tax"].append(_taxes)
             for cid, data in _taxes.items():
                 if cid not in excluded_cids:
-                    if cid not in tax_invoices:
-                        tax_invoices[cid] = {
-                            "total_tax": 0,
-                            "messages": [],
-                        }
-                    char_trans_ids += data['trans_ids']
-                    tax_invoices[cid]['total_tax'] += data['tax_to_pay']
-                    tax_invoices[cid]['messages'].append(
-                        f"{tax.name}: {data['tax_to_pay']:,.2f} ({tax.tax:,.1f}% of Total Earnings)")
+                    amount = round(data['tax_to_pay'], -6)
+                    if amount > 1000000:
+                        if cid not in tax_invoices:
+                            tax_invoices[cid] = {
+                                "total_tax": 0,
+                                "messages": [],
+                            }
+                        char_trans_ids += data['trans_ids']
+                        tax_invoices[cid]['total_tax'] += amount
+                        tax_invoices[cid]['messages'].append(
+                            f"{tax.name}: {amount:,.2f} ({tax.tax:,.1f}% of Total Earnings)")
 
         for tax in self.corporate_taxes_included.all():
             _taxes = tax.get_aggregates(
@@ -550,43 +552,50 @@ class CorpTaxConfiguration(models.Model):
             output["corp_tax"].append(_taxes)
             for cid, data in _taxes.items():
                 if cid not in excluded_cids:
-                    if cid not in tax_invoices:
-                        tax_invoices[cid] = {
-                            "total_tax": 0,
-                            "messages": [],
-                        }
-                    corp_trans_ids += data['trans_ids']
-                    tax_invoices[cid]['total_tax'] += data['tax_to_pay']
-                    tax_invoices[cid]['messages'].append(
-                        f"{tax.name}: {data['tax_to_pay']:,.2f} ({tax.tax:,.1f}% of Total Earnings)")
+                    amount = round(data['tax_to_pay'], -6)
+                    if amount > 1000000:
+                        if cid not in tax_invoices:
+                            tax_invoices[cid] = {
+                                "total_tax": 0,
+                                "messages": [],
+                            }
+                        corp_trans_ids += data['trans_ids']
+                        tax_invoices[cid]['total_tax'] += amount
+                        tax_invoices[cid]['messages'].append(
+                            f"{tax.name}: {amount:,.2f} ({tax.tax:,.1f}% of Total Earnings)")
 
         for tax in self.corporate_member_tax_included.all():
             _taxes = tax.get_invoice_data()
             output["corp_member_tax"].append(_taxes)
             for cid, data in _taxes.items():
                 if cid not in excluded_cids:
-                    if cid not in tax_invoices:
-                        tax_invoices[cid] = {
-                            "total_tax": 0,
-                            "messages": [],
-                        }
-                    tax_invoices[cid]['total_tax'] += data['tax_to_pay']
-                    tax_invoices[cid]['messages'].append(
-                        f"Main Character Tax: {data['main_count']} Mains @ {tax.isk_per_main:,} Per: {data['tax_to_pay']}")
+                    amount = round(data['tax_to_pay'], -6)
+                    if amount > 1000000:
+                        if cid not in tax_invoices:
+                            tax_invoices[cid] = {
+                                "total_tax": 0,
+                                "messages": [],
+                            }
+
+                        tax_invoices[cid]['total_tax'] += amount
+                        tax_invoices[cid]['messages'].append(
+                            f"Main Character Tax: ({tax.state.name}) {data['main_count']} Mains @ {tax.isk_per_main:,} Per: {amount}")
 
         for tax in self.corporate_structure_tax_included.all():
             _taxes = tax.get_invoice_data()
             output["corp_structure_tax"].append(_taxes)
             for cid, data in _taxes.items():
                 if cid not in excluded_cids:
-                    if cid not in tax_invoices:
-                        tax_invoices[cid] = {
-                            "total_tax": 0,
-                            "messages": [],
-                        }
-                    tax_invoices[cid]['total_tax'] += data['tax_to_pay']
-                    tax_invoices[cid]['messages'].append(
-                        f"Industry Structures Tax: {data['services_count']} Mains @ {tax.isk_per_service:,} Per: {data['tax_to_pay']}")
+                    amount = round(data['tax_to_pay'], -6)
+                    if amount > 1000000:
+                        if cid not in tax_invoices:
+                            tax_invoices[cid] = {
+                                "total_tax": 0,
+                                "messages": [],
+                            }
+                        tax_invoices[cid]['total_tax'] += data['tax_to_pay']
+                        tax_invoices[cid]['messages'].append(
+                            f"Industry Structures Tax: {data['services_count']} Mains @ {tax.isk_per_service:,} Per: {amount}")
 
         return {"taxes": tax_invoices, "raw": output, "char_trans_ids": char_trans_ids, "corp_trans_ids": corp_trans_ids}
 
