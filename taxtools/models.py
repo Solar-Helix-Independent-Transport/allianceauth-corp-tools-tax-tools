@@ -84,7 +84,7 @@ class CharacterPayoutTaxConfiguration(models.Model):
         output = {}
         tax_cache = {}
         trans_ids = set()
-
+        bad_transactions = []
         for d in data:
             if d['entry_id'] not in trans_ids:
                 cid = d['char']
@@ -125,7 +125,8 @@ class CharacterPayoutTaxConfiguration(models.Model):
                         total_value = d['tax']
                     else:
                         logger.debug(f"NO TAX or ISK Tax:{rate}% Data:{d}")
-                        total_value = Decimal(0)
+                        bad_transactions.append(d['entry_id'])
+                        continue
 
                 output[cid]["sum_earn"] += d['amount']
                 output[cid]["pre_tax_total"] += total_value
