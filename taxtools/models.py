@@ -433,7 +433,7 @@ class CorpTaxPerMemberTaxConfiguration(models.Model):
 
         for key, corp in corp_list.items():
             output['corps'][corp['corp']] = corp['main_count']
-            output['total'] += corp['tax']
+            output['total'] += corp['tax_to_pay']
 
         return output
 
