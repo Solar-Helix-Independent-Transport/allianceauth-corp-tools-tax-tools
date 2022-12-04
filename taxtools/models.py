@@ -595,7 +595,7 @@ class CorpTaxConfiguration(models.Model):
                             }
                         tax_invoices[cid]['total_tax'] += data['tax_to_pay']
                         tax_invoices[cid]['messages'].append(
-                            f"Industry Structures Tax: {data['services_count']} Mains @ {tax.isk_per_service:,} Per: {amount}")
+                            f"Industry Structures Tax: {data['services_count']} Structure @ {tax.isk_per_service:,} Per: {amount}")
 
         return {"taxes": tax_invoices, "raw": output, "char_trans_ids": char_trans_ids, "corp_trans_ids": corp_trans_ids}
 
