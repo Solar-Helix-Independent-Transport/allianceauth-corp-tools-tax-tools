@@ -49,6 +49,9 @@ class CharacterPayoutTaxConfiguration(models.Model):
             ('access_tax_tools_ui', 'Can View Tax Tools UI'),
         )
 
+    def __str__(self) -> str:
+        return F"{self.name}: {self.tax:,.2f} of {self.wallet_transaction_type} from {self.corporation.name}"
+
     def get_payment_data(self, start_date=MIN_DATE, end_date=MAX_DATE, alliance_filter=None):
         ref_types = self.wallet_transaction_type.split(",")
         query = CharacterWalletJournalEntry.objects.filter(
@@ -296,8 +299,8 @@ class CorpTaxPayoutTaxConfiguration(models.Model):
 
     tax = models.DecimalField(max_digits=5, decimal_places=2, default=5.0)
 
-    def __str__(self):
-        return self.corporation.name
+    def __str__(self) -> str:
+        return F"{self.name}: {self.tax:,.2f} of {self.wallet_transaction_type} from {self.corporation.name}"
 
     def get_payment_data(self, start_date=datetime.min, end_date=datetime.max, alliance_filter=None):
         return CorporationWalletJournalEntry.objects.filter(
@@ -385,8 +388,8 @@ class CorpTaxPerMemberTaxConfiguration(models.Model):
 
     isk_per_main = models.IntegerField(default=20000000)
 
-    def __str__(self):
-        return self.state.name
+    def __str__(self) -> str:
+        return F"{self.state} @ {self.isk_per_main:,.2f}"
 
     def get_main_counts(self):
         characters = EveCharacter.objects.filter(
@@ -445,6 +448,9 @@ class CorpTaxPerServiceModuleConfiguration(models.Model):
 
     region_filter = models.ManyToManyField(MapRegion, blank=True)
 
+    def __str__(self) -> str:
+        return F"{self.isk_per_service:,.2f} per {self.module_filters}"
+
     def get_service_counts(self):  # TODO update
         services = self.module_filters.split(",")
         structure_services = StructureService.objects.filter(
@@ -488,31 +494,33 @@ class CorpTaxPerServiceModuleConfiguration(models.Model):
 
 class CorpTaxRecord(models.Model):
     Name = models.CharField(max_length=50)
-    JsonDump = models.TextField()
-    TotalTax = models.DecimalField(
-        max_digits=20, decimal_places=2, null=True, default=None)
-    TotalCharacterEarnings = models.DecimalField(
-        max_digits=20, decimal_places=2, null=True, default=None)
-    TotalCorporateEarnings = models.DecimalField(
+    json_dump = models.TextField()
+    total_tax = models.DecimalField(
         max_digits=20, decimal_places=2, null=True, default=None)
 
 
 class CorpTaxConfiguration(models.Model):
     Name = models.CharField(max_length=50)
 
-    CharacterTaxesIncluded = models.ManyToManyField(
+    character_taxes_included = models.ManyToManyField(
         CharacterPayoutTaxConfiguration, blank=True)
-    CorporateTaxesIncluded = models.ManyToManyField(
+    corporate_taxes_included = models.ManyToManyField(
         CorpTaxPayoutTaxConfiguration, blank=True)
-    CorporateMemberTaxIncluded = models.ManyToManyField(
+    corporate_member_tax_included = models.ManyToManyField(
         CorpTaxPerMemberTaxConfiguration, blank=True)
-    CorporateStructureTaxIncluded = models.ManyToManyField(
+    corporate_structure_tax_included = models.ManyToManyField(
         CorpTaxPerServiceModuleConfiguration, blank=True)
 
-    def calculate_tax(self, start_date=datetime.min, end_date=datetime.max, alliance_filter=None):
-        corps = []
+    exempted_corps = models.ManyToManyField(EveCorporationInfo, blank=True)
 
+    def __str__(self) -> str:
+        return F"{self.Name}"
+
+    def calculate_tax(self, start_date=datetime.min, end_date=datetime.max, alliance_filter=None):
+        excluded_cids = self.exempted_corps.all().values_list("corporation_id", flat=True)
         tax_invoices = {}
+        char_trans_ids = []
+        corp_trans_ids = []
         output = {
             "char_tax": [],
             "corp_tax": [],
@@ -520,52 +528,65 @@ class CorpTaxConfiguration(models.Model):
             "corp_structure_tax": [],
             "total_tax": 0
         }
-        for tax in self.CharacterTaxesIncluded.all():
+        for tax in self.character_taxes_included.all():
             _taxes = tax.get_character_aggregates_corp_level(
                 start_date=start_date, end_date=end_date, alliance_filter=alliance_filter)
             output["char_tax"].append(_taxes)
             for cid, data in _taxes.items():
-                if cid not in tax_invoices:
-                    tax_invoices[cid] = {
-                        "total_tax": 0,
-                        "messages": [],
-                    }
-                tax_invoices[cid]['total_tax'] += data['tax_to_pay']
-                tax_invoices[cid]['messages'].append(
-                    f"{tax.name}: {data['tax_to_pay']:,.2f} ({tax.tax:,.1f}% of Total Earnings)")
+                if cid not in excluded_cids:
+                    if cid not in tax_invoices:
+                        tax_invoices[cid] = {
+                            "total_tax": 0,
+                            "messages": [],
+                        }
+                    tax_invoices[cid]['total_tax'] += data['tax_to_pay']
+                    tax_invoices[cid]['messages'].append(
+                        f"{tax.name}: {data['tax_to_pay']:,.2f} ({tax.tax:,.1f}% of Total Earnings)")
 
-        for tax in self.CorporateTaxesIncluded.all():
+        for tax in self.corporate_taxes_included.all():
             _taxes = tax.get_aggregates(
                 start_date=start_date, end_date=end_date, alliance_filter=alliance_filter)
             output["corp_tax"].append(_taxes)
             for cid, data in _taxes.items():
-                if cid not in tax_invoices:
-                    tax_invoices[cid] = {
-                        "total_tax": 0,
-                        "messages": [],
-                    }
-                tax_invoices[cid]['total_tax'] += data['tax_to_pay']
-                tax_invoices[cid]['messages'].append(
-                    f"{tax.name}: {data['tax_to_pay']:,.2f} ({tax.tax:,.1f}% of Total Earnings)")
+                if cid not in excluded_cids:
+                    if cid not in tax_invoices:
+                        tax_invoices[cid] = {
+                            "total_tax": 0,
+                            "messages": [],
+                        }
+                    tax_invoices[cid]['total_tax'] += data['tax_to_pay']
+                    tax_invoices[cid]['messages'].append(
+                        f"{tax.name}: {data['tax_to_pay']:,.2f} ({tax.tax:,.1f}% of Total Earnings)")
 
-        for tax in self.CorporateMemberTaxIncluded.all():
+        for tax in self.corporate_member_tax_included.all():
             _taxes = tax.get_invoice_data()
             output["corp_member_tax"].append(_taxes)
             for cid, data in _taxes.items():
-                if cid not in tax_invoices:
-                    tax_invoices[cid] = {
-                        "total_tax": 0,
-                        "messages": [],
-                    }
-                tax_invoices[cid]['total_tax'] += data['tax_to_pay']
-                tax_invoices[cid]['messages'].append(
-                    f"Main Character Tax: {data['main_count']} Mains @ {tax.isk_per_main:,} Per")
+                if cid not in excluded_cids:
+                    if cid not in tax_invoices:
+                        tax_invoices[cid] = {
+                            "total_tax": 0,
+                            "messages": [],
+                        }
+                    tax_invoices[cid]['total_tax'] += data['tax_to_pay']
+                    tax_invoices[cid]['messages'].append(
+                        f"Main Character Tax: {data['main_count']} Mains @ {tax.isk_per_main:,} Per: {data['tax_to_pay']}")
 
-        # for tax in self.CorporateStructureTaxIncluded.all():
-        #    _taxes = tax.get_invoice_data()
-        #    output["corp_structure_tax"].append(_taxes)
+        for tax in self.corporate_structure_tax_included.all():
+            _taxes = tax.get_invoice_data()
+            output["corp_structure_tax"].append(_taxes)
+            for cid, data in _taxes.items():
+                if cid not in excluded_cids:
+                    if cid not in tax_invoices:
+                        tax_invoices[cid] = {
+                            "total_tax": 0,
+                            "messages": [],
+                        }
+                    tax_invoices[cid]['total_tax'] += data['tax_to_pay']
+                    tax_invoices[cid]['messages'].append(
+                        f"Industry Structures Tax: {data['services_count']} Mains @ {tax.isk_per_service:,} Per: {data['tax_to_pay']}")
 
-        return {"taxes": tax_invoices, "raw": output}
+        return {"taxes": tax_invoices, "raw": output, "char_trans_ids": char_trans_ids, "corp_trans_ids": corp_trans_ids}
 
     def send_invoices(self):
         pass

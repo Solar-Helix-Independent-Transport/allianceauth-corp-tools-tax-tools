@@ -25,8 +25,9 @@ class CorpTaxPerMemberTaxConfigurationAdmin(admin.ModelAdmin):
 
 @admin.register(models.CorpTaxConfiguration)
 class CorpTaxConfigurationAdmin(admin.ModelAdmin):
-    filter_horizontal = ["CharacterTaxesIncluded", "CorporateTaxesIncluded",
-                         "CorporateMemberTaxIncluded", "CorporateStructureTaxIncluded"]
+    filter_horizontal = ["character_taxes_included", "corporate_taxes_included",
+                         "corporate_member_tax_included", "corporate_structure_tax_included",
+                         "exempted_corps"]
 
 
 @admin.register(models.CorpTaxPerServiceModuleConfiguration)
