@@ -151,7 +151,7 @@ class CharacterPayoutTaxConfiguration(models.Model):
 
         return output
 
-    def get_character_aggregates_corp_level(self, start_date=MIN_DATE, end_date=MAX_DATE, full=False, alliance_filter=None):
+    def get_character_aggregates_corp_level(self, start_date=MIN_DATE, end_date=MAX_DATE, full=True, alliance_filter=None):
         data = self.get_character_aggregates(
             start_date, end_date, alliance_filter)
         output = {}
@@ -539,6 +539,7 @@ class CorpTaxConfiguration(models.Model):
                             "total_tax": 0,
                             "messages": [],
                         }
+                    char_trans_ids += data['trans_ids']
                     tax_invoices[cid]['total_tax'] += data['tax_to_pay']
                     tax_invoices[cid]['messages'].append(
                         f"{tax.name}: {data['tax_to_pay']:,.2f} ({tax.tax:,.1f}% of Total Earnings)")
@@ -554,6 +555,7 @@ class CorpTaxConfiguration(models.Model):
                             "total_tax": 0,
                             "messages": [],
                         }
+                    corp_trans_ids += data['trans_ids']
                     tax_invoices[cid]['total_tax'] += data['tax_to_pay']
                     tax_invoices[cid]['messages'].append(
                         f"{tax.name}: {data['tax_to_pay']:,.2f} ({tax.tax:,.1f}% of Total Earnings)")
