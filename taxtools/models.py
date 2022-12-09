@@ -1,7 +1,8 @@
 import decimal
+import json
 import logging
 from calendar import c
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from email.policy import default
 from typing import Dict
@@ -17,10 +18,14 @@ from corptools.models import (CharacterWalletJournalEntry, CorporationAudit,
 from corptools.providers import esi
 from discord import annotations
 from django.contrib.auth.models import User
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 from django.db.models import Count, F, Max, Min, Sum
+from django.forms import model_to_dict
+from django.utils import timezone as tzone
 from esi.models import Token
+from invoices.models import Invoice
 
 logger = logging.getLogger(__name__)
 
@@ -187,13 +192,6 @@ class CharacterPayoutTaxConfiguration(models.Model):
             if t['end'] > output[cid]["end"]:
                 output[cid]["end"] = t['start']
         return output
-
-
-class CharacterPayoutTaxRecord(models.Model):
-    entry = models.OneToOneField(
-        CharacterWalletJournalEntry, on_delete=models.CASCADE, related_name="taxed")
-
-    processed = models.BooleanField(default=True)
 
 
 # CorpTaxChangeMsg
@@ -375,13 +373,6 @@ class CorpTaxPayoutTaxConfiguration(models.Model):
         return output
 
 
-class CorporatePayoutTaxRecord(models.Model):
-    entry = models.OneToOneField(
-        CorporationWalletJournalEntry, on_delete=models.CASCADE, related_name="taxed")
-
-    processed = models.BooleanField(default=True)
-
-
 class CorpTaxPerMemberTaxConfiguration(models.Model):
     state = models.ForeignKey(
         State,
@@ -495,10 +486,28 @@ class CorpTaxPerServiceModuleConfiguration(models.Model):
 
 
 class CorpTaxRecord(models.Model):
-    Name = models.CharField(max_length=50)
+    name = models.CharField(max_length=50)
+    start_date = models.DateTimeField()
+    end_date = models.DateTimeField()
     json_dump = models.TextField()
     total_tax = models.DecimalField(
         max_digits=20, decimal_places=2, null=True, default=None)
+
+
+class ExtendedJsonEncoder(DjangoJSONEncoder):
+
+    def default(self, o):
+
+        if isinstance(o, User):
+            return {"user_id": o.pk}
+
+        if isinstance(o, models.Model):
+            return model_to_dict(o)
+
+        if isinstance(o, set):
+            return list(o)
+
+        return super().default(o)
 
 
 class CorpTaxConfiguration(models.Model):
@@ -518,6 +527,17 @@ class CorpTaxConfiguration(models.Model):
     def __str__(self) -> str:
         return F"{self.Name}"
 
+    @classmethod
+    def get_last_invoice_date(cls):
+        try:
+            return CorpTaxRecord.objects.all().order_by('-end_date').first().end_date
+        except (ObjectDoesNotExist, AttributeError) as e:
+            return datetime.min + timedelta(days=5)
+
+    @classmethod
+    def generate_corp_ref(cls, corporation, date):
+        return f"{corporation.corporation_ticker}-{date.strftime('%Y%m%d')}"
+
     def calculate_tax(self, start_date=datetime.min, end_date=datetime.max, alliance_filter=None):
         excluded_cids = self.exempted_corps.all().values_list("corporation_id", flat=True)
         tax_invoices = {}
@@ -530,6 +550,7 @@ class CorpTaxConfiguration(models.Model):
             "corp_structure_tax": [],
             "total_tax": 0
         }
+
         for tax in self.character_taxes_included.all():
             _taxes = tax.get_character_aggregates_corp_level(
                 start_date=start_date, end_date=end_date, alliance_filter=alliance_filter)
@@ -543,10 +564,10 @@ class CorpTaxConfiguration(models.Model):
                                 "total_tax": 0,
                                 "messages": [],
                             }
-                        char_trans_ids += data['trans_ids']
                         tax_invoices[cid]['total_tax'] += amount
                         tax_invoices[cid]['messages'].append(
                             f"{tax.name}: {amount:,.2f} ({tax.tax:,.1f}% of Total Earnings)")
+                    char_trans_ids += data['trans_ids']
 
         for tax in self.corporate_taxes_included.all():
             _taxes = tax.get_aggregates(
@@ -561,10 +582,10 @@ class CorpTaxConfiguration(models.Model):
                                 "total_tax": 0,
                                 "messages": [],
                             }
-                        corp_trans_ids += data['trans_ids']
                         tax_invoices[cid]['total_tax'] += amount
                         tax_invoices[cid]['messages'].append(
                             f"{tax.name}: {amount:,.2f} ({tax.tax:,.1f}% of Total Earnings)")
+                    corp_trans_ids += data['trans_ids']
 
         for tax in self.corporate_member_tax_included.all():
             _taxes = tax.get_invoice_data()
@@ -601,5 +622,93 @@ class CorpTaxConfiguration(models.Model):
 
         return {"taxes": tax_invoices, "raw": output, "char_trans_ids": char_trans_ids, "corp_trans_ids": corp_trans_ids}
 
+    @classmethod
+    def sanitize_date(cls, date):
+        return datetime(year=date.year,
+                        month=date.month,
+                        day=date.day,
+                        tzinfo=date.tzinfo,
+                        hour=0,
+                        minute=0,
+                        second=0)
+
+    @classmethod
+    def generate_invoice_for_ceo(cls, corp_id, ref, amount, message):
+        # generate an invoice and return it
+        due = tzone.now() + timedelta(days=14)
+        corp = EveCorporationInfo.objects.get(corporation_id=corp_id)
+        character = EveCharacter.objects.get_character_by_id(corp.ceo_id)
+        if not character:
+            if not corp.ceo_id:
+                corp.update_corporation()
+            character = EveCharacter.objects.create_character(corp.ceo_id)
+        return Invoice(character=character,
+                       amount=amount,
+                       invoice_ref=cls.generate_corp_ref(corp, tzone.now()),
+                       note=message,
+                       due_date=due)
+
     def send_invoices(self):
-        pass
+        start_date = self.sanitize_date(
+            # allow for esi delays in the wallets
+            self.get_last_invoice_date() - timedelta(days=2)
+        )
+        end_date = self.sanitize_date(tzone.now())
+        taxes = self.calculate_tax(start_date=start_date, end_date=end_date)
+        total_tax = 0
+        for id, tax in taxes['taxes'].items():
+            msg = "\n".join(tax['messages'])
+            invoice = self.generate_invoice_for_ceo(
+                id, f"ref#{id}", tax['total_tax'], msg)
+            total_tax += tax['total_tax']
+            print(f"## {id}: ${tax['total_tax']:,} ##\n{msg}")
+            invoice.save()
+            try:
+                invoice.notify(message=msg, title="Alliance Taxes")
+            except ObjectDoesNotExist:
+                pass
+
+        record = CorpTaxRecord.objects.create(
+            name=f"Alliance Taxes {end_date}",
+            start_date=start_date,
+            end_date=end_date,
+            total_tax=total_tax,
+            json_dump=json.dumps(taxes, cls=ExtendedJsonEncoder)
+        )
+        char_obs = []
+        char_ids = CharacterWalletJournalEntry.objects.filter(
+            entry_id__in=taxes['char_trans_ids']).values_list('id', flat=True)
+        for tid in char_ids:
+            char_obs.append(CharacterPayoutTaxRecord(
+                entry_id=tid,
+                record=record
+            ))
+        CharacterPayoutTaxRecord.objects.bulk_create(char_obs)
+
+        corp_obs = []
+        corp_ids = CorporationWalletJournalEntry.objects.filter(
+            entry_id__in=taxes['corp_trans_ids']).values_list('id', flat=True)
+        for tid in corp_ids:
+            corp_obs.append(CorporatePayoutTaxRecord(
+                entry_id=tid,
+                record=record
+            ))
+        CorporatePayoutTaxRecord.objects.bulk_create(corp_obs)
+
+        return taxes
+
+
+class CorporatePayoutTaxRecord(models.Model):
+    entry = models.OneToOneField(
+        CorporationWalletJournalEntry, on_delete=models.CASCADE, related_name="taxed")
+
+    processed = models.BooleanField(default=True)
+    record = models.ForeignKey(CorpTaxRecord, on_delete=models.CASCADE)
+
+
+class CharacterPayoutTaxRecord(models.Model):
+    entry = models.OneToOneField(
+        CharacterWalletJournalEntry, on_delete=models.CASCADE, related_name="taxed")
+
+    processed = models.BooleanField(default=True)
+    record = models.ForeignKey(CorpTaxRecord, on_delete=models.CASCADE)

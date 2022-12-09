@@ -23,44 +23,6 @@ api = NinjaAPI(title="Tax Tools API", version="0.0.1",
 
 
 @api.get(
-    "char/tax/list",
-    tags=["Character Taxes"],
-    response={200: List[CharacterWalletEvent]},
-)
-def get_char_tax_data(request, days=90, conf_id=1):
-    if not request.user.is_superuser:
-        return []
-    start = timezone.now() - timedelta(days=days)
-
-    t = models.CharacterPayoutTaxConfiguration.objects.get(id=conf_id)
-
-    output = []
-    for w in t.get_payment_data(start_date=start):
-        output.append(
-            {
-                "character": w.character.character,
-                "id": w.entry_id,
-                "date": w.date,
-                "first_party": {
-                    "id": w.first_party_id,
-                    "name": w.first_party_name.name,
-                    "cat": w.first_party_name.category,
-                },
-                "second_party":  {
-                    "id": w.second_party_id,
-                    "name": w.second_party_name.name,
-                    "cat": w.second_party_name.category,
-                },
-                "ref_type": w.ref_type,
-                "amount": w.amount,
-                "balance": w.balance,
-                "reason": w.reason,
-            })
-
-    return output
-
-
-@api.get(
     "char/tax/aggregates",
     tags=["Character Taxes"],
 )
@@ -83,36 +45,8 @@ def get_char_tax_aggregates_corp(request, days=90, conf_id=1):
         return []
     start = timezone.now() - timedelta(days=days)
     t = models.CharacterPayoutTaxConfiguration.objects.get(id=conf_id)
-    tx = t.get_character_aggregates_corp_level(start_date=start)
+    tx = t.get_character_aggregates_corp_level(start_date=start, full=False)
     return tx
-
-
-@api.get(
-    "char/tax/aggregates/groups",
-    tags=["Character Taxes"],
-)
-def get_char_tax_aggregate_groups(request, days=90, conf_id=1):
-    if not request.user.is_superuser:
-        return []
-    start = timezone.now() - timedelta(days=days)
-    t = models.CharacterPayoutTaxConfiguration.objects.get(id=conf_id)
-    tx = t.get_aggregates(start_date=start)
-
-    output = {}
-    for w in tx:
-        if w['corp'] not in output:
-            output[w['corp']] = {
-                "characters": [],
-                "sum": 0,
-                "tax": 0,
-                "cnt": 0,
-            }
-        output[w['corp']]["characters"].append(w['char'])
-        output[w['corp']]["sum"] += w['sum_amount']
-        output[w['corp']]["tax"] += w['tax_amount']
-        output[w['corp']]["cnt"] += w['cnt_amount']
-
-    return output
 
 
 @api.get(
@@ -249,12 +183,11 @@ def get_corp_member_tax__aggregates(request, conf_id=1):
     "global/corp/tax/aggregates",
     tags=["Global Taxes"],
 )
-def get_global_corp_taxes(request, days=90, conf_id=1, alli_filter: int = None):
+def get_global_corp_taxes(request, conf_id=1):
     if not request.user.is_superuser:
         return []
-    start = timezone.now() - timedelta(days=days)
     t = models.CorpTaxConfiguration.objects.get(id=conf_id)
-    tx = t.calculate_tax(start_date=start, alliance_filter=alli_filter)
+    tx = t.send_invoices()
 
     return tx
 

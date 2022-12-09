@@ -33,3 +33,28 @@ class CorpTaxConfigurationAdmin(admin.ModelAdmin):
 @admin.register(models.CorpTaxPerServiceModuleConfiguration)
 class CorpTaxPerServiceModuleConfigurationAdmin(admin.ModelAdmin):
     filter_horizontal = ["region_filter"]
+
+
+@admin.register(models.CorpTaxRecord)
+class CorpTaxRecordAdmin(admin.ModelAdmin):
+    list_display = ['name', 'start_date', "end_date", ('total_tax', "{:,}")]
+
+    # generate a custom formater cause i am lazy...
+    def __init__(self, *args, **kwargs):
+        def generate_formatter(name, str_format):
+            def formatter(o): return str_format.format(getattr(o, name) or 0)
+            formatter.short_description = name
+            formatter.admin_order_field = name
+            return formatter
+
+        all_fields = []
+        for f in self.list_display:
+            if isinstance(f, str):
+                all_fields.append(f)
+            else:
+                new_field_name = "_" + f[0]
+                setattr(self, new_field_name, generate_formatter(f[0], f[1]))
+                all_fields.append(new_field_name)
+        self.list_display = all_fields
+
+        super().__init__(*args, **kwargs)
