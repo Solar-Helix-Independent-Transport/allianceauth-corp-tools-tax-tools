@@ -566,7 +566,7 @@ class CorpTaxConfiguration(models.Model):
                             }
                         tax_invoices[cid]['total_tax'] += amount
                         tax_invoices[cid]['messages'].append(
-                            f"{tax.name}: {amount:,.2f} ({tax.tax:,.1f}% of Total Earnings)")
+                            f"{tax.name}: {amount:,} ({tax.tax:,.1f}% of Total Earnings)")
                     char_trans_ids += data['trans_ids']
 
         for tax in self.corporate_taxes_included.all():
@@ -584,7 +584,7 @@ class CorpTaxConfiguration(models.Model):
                             }
                         tax_invoices[cid]['total_tax'] += amount
                         tax_invoices[cid]['messages'].append(
-                            f"{tax.name}: {amount:,.2f} ({tax.tax:,.1f}% of Total Earnings)")
+                            f"{tax.name}: {amount:,} ({tax.tax:,.1f}% of Total Earnings)")
                     corp_trans_ids += data['trans_ids']
 
         for tax in self.corporate_member_tax_included.all():
@@ -602,7 +602,7 @@ class CorpTaxConfiguration(models.Model):
 
                         tax_invoices[cid]['total_tax'] += amount
                         tax_invoices[cid]['messages'].append(
-                            f"Main Character Tax: ({tax.state.name}) {data['main_count']} Mains @ {tax.isk_per_main:,} Per: {amount}")
+                            f"Main Character Tax: ${amount:,} ({tax.state.name}: {data['main_count']} Mains @ {tax.isk_per_main:,} Per)")
 
         for tax in self.corporate_structure_tax_included.all():
             _taxes = tax.get_invoice_data()
@@ -618,7 +618,7 @@ class CorpTaxConfiguration(models.Model):
                             }
                         tax_invoices[cid]['total_tax'] += data['tax_to_pay']
                         tax_invoices[cid]['messages'].append(
-                            f"Industry Structures Tax: {data['services_count']} Structure @ {tax.isk_per_service:,} Per: {amount}")
+                            f"Industry Structures Tax: ${amount:,} ({data['services_count']} Structure @ {tax.isk_per_service:,} Per)")
 
         return {"taxes": tax_invoices, "raw": output, "char_trans_ids": char_trans_ids, "corp_trans_ids": corp_trans_ids}
 
