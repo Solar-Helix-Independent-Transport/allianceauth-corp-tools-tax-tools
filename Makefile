@@ -7,8 +7,8 @@ help:
 	@echo "  clean      remove all old packages"
 	@echo "  test       run tests"
 	@echo "  deploy     Configure the PyPi config file in CI"
-	@echo "  packagejs  Build the React Project"
-	@echo "  packagepy  Build the PyPi package"
+	@echo "  package    Build the PyPi package"
+	@echo "  devjs      Start the React Dev environment"
 
 clean:
 	rm -rf dist/*

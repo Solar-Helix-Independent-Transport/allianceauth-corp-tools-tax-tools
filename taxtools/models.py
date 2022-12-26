@@ -1,30 +1,24 @@
 import decimal
 import json
 import logging
-from calendar import c
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from email.policy import default
-from typing import Dict
 
 import yaml
 from allianceauth.authentication.models import State
-from allianceauth.eveonline.models import (EveAllianceInfo, EveCharacter,
-                                           EveCorporationInfo)
+from allianceauth.eveonline.models import EveCharacter, EveCorporationInfo
 from corptools.models import (CharacterWalletJournalEntry, CorporationAudit,
-                              CorporationWalletJournalEntry, EveLocation,
-                              EveName, MapRegion, Notification, Structure,
+                              CorporationWalletJournalEntry, EveName,
+                              MapRegion, Notification, Structure,
                               StructureService)
 from corptools.providers import esi
-from discord import annotations
 from django.contrib.auth.models import User
-from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
-from django.db.models import Count, F, Max, Min, Sum
+from django.db.models import Count, F
 from django.forms import model_to_dict
 from django.utils import timezone as tzone
-from esi.models import Token
 from invoices.models import Invoice
 
 logger = logging.getLogger(__name__)
@@ -42,10 +36,12 @@ class CharacterPayoutTaxConfiguration(models.Model):
         limit_choices_to={'category': "corporation"},
         blank=True,
         null=True,
-        default=None
+        default=None,
+        help_text="Corporation that sent isk to character, Blank for Any Corporation"
     )
 
-    wallet_transaction_type = models.CharField(max_length=150)
+    wallet_transaction_type = models.CharField(max_length=150,
+                                               help_text="Transaction types to tax. eg bounty_prizes,corporate_reward_payout")
 
     tax = models.DecimalField(max_digits=5, decimal_places=2, default=5.0)
 
@@ -292,10 +288,12 @@ class CorpTaxPayoutTaxConfiguration(models.Model):
         limit_choices_to={'category': "corporation"},
         blank=True,
         null=True,
-        default=None
+        default=None,
+        help_text="Corporation that sent isk to character, Blank for Any Corporation"
     )
 
-    wallet_transaction_type = models.CharField(max_length=150)
+    wallet_transaction_type = models.CharField(max_length=150,
+                                               help_text="Transaction types to tax. eg bounty_prizes,corporate_reward_payout")
 
     tax = models.DecimalField(max_digits=5, decimal_places=2, default=5.0)
 
@@ -377,6 +375,7 @@ class CorpTaxPerMemberTaxConfiguration(models.Model):
     state = models.ForeignKey(
         State,
         on_delete=models.CASCADE,
+        help_text="State to assign this member tax rate to."
     )
 
     isk_per_main = models.IntegerField(default=20000000)
@@ -437,9 +436,11 @@ class CorpTaxPerMemberTaxConfiguration(models.Model):
 class CorpTaxPerServiceModuleConfiguration(models.Model):
     isk_per_service = models.IntegerField(default=20000000)
 
-    module_filters = models.TextField()
+    module_filters = models.TextField(
+        help_text="Comma Delimited list of service module types to Tax eg, Manufacturing (Standard),Manufacturing (Capitals),Manufacturing (Super Capitals)")
 
-    region_filter = models.ManyToManyField(MapRegion, blank=True)
+    region_filter = models.ManyToManyField(
+        MapRegion, blank=True, help_text="Regions to limit this tax to.")
 
     def __str__(self) -> str:
         return F"{self.isk_per_service:,.2f} per {self.module_filters}"
