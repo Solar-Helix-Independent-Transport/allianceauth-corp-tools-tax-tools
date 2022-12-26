@@ -49,6 +49,8 @@ class CharacterPayoutTaxConfiguration(models.Model):
         permissions = (
             ('access_tax_tools_ui', 'Can View Tax Tools UI'),
         )
+        verbose_name = "Tax: Character Wallet"
+        verbose_name_plural = "Tax: Character Wallet"
 
     def __str__(self) -> str:
         return F"{self.name}: {self.tax:,.2f} of {self.wallet_transaction_type} from {self.corporation.name if self.corporation else 'all'}"
@@ -297,6 +299,10 @@ class CorpTaxPayoutTaxConfiguration(models.Model):
 
     tax = models.DecimalField(max_digits=5, decimal_places=2, default=5.0)
 
+    class Meta:
+        verbose_name = "Tax: Corporate Wallet"
+        verbose_name_plural = "Tax: Corporate Wallet"
+
     def __str__(self) -> str:
         return F"{self.name}: {self.tax:,.2f} of {self.wallet_transaction_type} from {self.corporation.name if self.corporation else 'all'}"
 
@@ -380,6 +386,10 @@ class CorpTaxPerMemberTaxConfiguration(models.Model):
 
     isk_per_main = models.IntegerField(default=20000000)
 
+    class Meta:
+        verbose_name = "Tax: Corp Member Main"
+        verbose_name_plural = "Tax: Corp Member Main"
+
     def __str__(self) -> str:
         return F"{self.state} @ {self.isk_per_main:,.2f}"
 
@@ -445,6 +455,10 @@ class CorpTaxPerServiceModuleConfiguration(models.Model):
     def __str__(self) -> str:
         return F"{self.isk_per_service:,.2f} per {self.module_filters}"
 
+    class Meta:
+        verbose_name = "Tax: Structure Service"
+        verbose_name_plural = "Tax: Structure Service"
+
     def get_service_counts(self):  # TODO update
         services = self.module_filters.split(",")
         structure_services = StructureService.objects.filter(
@@ -494,6 +508,10 @@ class CorpTaxRecord(models.Model):
     total_tax = models.DecimalField(
         max_digits=20, decimal_places=2, null=True, default=None)
 
+    class Meta:
+        verbose_name = "Records: Corporate"
+        verbose_name_plural = "Records: Corporate"
+
 
 class ExtendedJsonEncoder(DjangoJSONEncoder):
 
@@ -527,6 +545,10 @@ class CorpTaxConfiguration(models.Model):
 
     def __str__(self) -> str:
         return F"{self.Name}"
+
+    class Meta:
+        verbose_name = "Config: Corporate"
+        verbose_name_plural = "Config: Corporate"
 
     @classmethod
     def get_last_invoice_date(cls):
