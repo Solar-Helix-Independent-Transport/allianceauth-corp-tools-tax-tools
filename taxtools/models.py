@@ -17,7 +17,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
-from django.db.models import Count, F
+from django.db.models import Count, ExpressionWrapper, F
 from django.forms import model_to_dict
 from django.utils import timezone as tzone
 from invoices.models import Invoice
@@ -69,9 +69,10 @@ class CharacterRattingTaxConfiguration(models.Model):
             char=F('character__character__character_id'),
             corp=F('character__character__corporation_id'),
             char_name=F('character__character__character_name'),
-            total_ratted=((F('amount')+F('tax'))/0.6),
-            ess_reserve=((F('amount')+F('tax'))/0.6)*0.05,
-            ess_cut=((F('amount')+F('tax'))/0.6)*0.35,
+            total_ratted=ExpressionWrapper(
+                ((F('amount')+F('tax'))/0.6), output_field=models.FloatField()),
+            ess_cut=ExpressionWrapper(
+                ((F('amount')+F('tax'))/0.6)*0.35, output_field=models.FloatField())
             main=F(
                 'character__character__character_ownership__user__profile__main_character__character_id'
             ),
