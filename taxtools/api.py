@@ -53,7 +53,7 @@ def get_char_tax_aggregates_corp(request, days=90, conf_id=1):
     "char/ratting/aggregates/corp",
     tags=["Character Taxes"],
 )
-def get_char_tax_aggregates_corp(request, days=90, conf_id=1):
+def get_char_ratting_aggregates_corp(request, days=90, conf_id=1):
     if not request.user.is_superuser:
         return []
     start = timezone.now() - timedelta(days=days)
