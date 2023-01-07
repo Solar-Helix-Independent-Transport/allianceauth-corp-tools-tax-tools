@@ -106,10 +106,10 @@ class CharacterRattingTaxConfiguration(models.Model):
 
                 try:
                     total_value = d['total_ratted'] - d['ess_reserve']
-                except (Exception):  # prob cause none or something
+                except (Exception) as e:  # prob cause none or something
 
                     # prob bad data from ccp we need to do math here...
-                    logger.debug(f"NO TAX or ISK Data:{d}")
+                    logger.debug(f"NO TAX or ISK Data:{d} {e}")
                     bad_transactions.append(d['entry_id'])
                     continue
 
