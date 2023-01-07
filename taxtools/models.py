@@ -72,7 +72,7 @@ class CharacterRattingTaxConfiguration(models.Model):
             total_ratted=ExpressionWrapper(
                 ((F('amount')+F('tax'))/0.6), output_field=models.FloatField()),
             ess_cut=ExpressionWrapper(
-                ((F('amount')+F('tax'))/0.6)*0.35, output_field=models.FloatField())
+                ((F('amount')+F('tax'))/0.6)*0.35, output_field=models.FloatField()),
             main=F(
                 'character__character__character_ownership__user__profile__main_character__character_id'
             ),
