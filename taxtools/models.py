@@ -105,7 +105,7 @@ class CharacterRattingTaxConfiguration(models.Model):
                     }
 
                 try:
-                    total_value = d['total_ratted'] - d['ess_reserve']
+                    total_value = d['total_ratted'] - d['ess_cut']
                 except (Exception) as e:  # prob cause none or something
 
                     # prob bad data from ccp we need to do math here...
