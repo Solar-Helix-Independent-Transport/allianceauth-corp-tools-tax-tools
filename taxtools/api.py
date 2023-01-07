@@ -77,7 +77,7 @@ def get_char_ratting_totals(request, days=90, conf_id=1):
         output["total_ratting"] += d["pre_tax_total"]
         output["total_tax"] += d["tax_to_pay"]
 
-    return tx
+    return output
 
 
 @api.get(
