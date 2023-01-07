@@ -70,9 +70,9 @@ class CharacterRattingTaxConfiguration(models.Model):
             corp=F('character__character__corporation_id'),
             char_name=F('character__character__character_name'),
             total_ratted=ExpressionWrapper(
-                ((F('amount')+F('tax'))/0.6), output_field=models.FloatField()),
+                ((F('amount')+F('tax'))/0.6), output_field=models.DecimalField()),
             ess_cut=ExpressionWrapper(
-                ((F('amount')+F('tax'))/0.6)*0.35, output_field=models.FloatField()),
+                ((F('amount')+F('tax'))/0.6)*0.35, output_field=models.DecimalField()),
             main=F(
                 'character__character__character_ownership__user__profile__main_character__character_id'
             ),
