@@ -3,6 +3,12 @@ from django.contrib import admin
 from . import models
 
 
+@admin.register(models.CharacterRattingTaxConfiguration)
+class CorpTaxPerServiceModuleConfigurationAdmin(admin.ModelAdmin):
+    list_display = ['__str__', 'tax']
+    filter_horizontal = ["region_filter"]
+
+
 @admin.register(models.CharacterPayoutTaxConfiguration)
 class CharacterPayoutTaxConfigurationAdmin(admin.ModelAdmin):
     # filter_horizontal = []

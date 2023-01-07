@@ -3,13 +3,14 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from math import floor, log
 
 import yaml
 from allianceauth.authentication.models import State
 from allianceauth.eveonline.models import EveCharacter, EveCorporationInfo
 from corptools.models import (CharacterWalletJournalEntry, CorporationAudit,
                               CorporationWalletJournalEntry, EveName,
-                              MapRegion, Notification, Structure,
+                              MapRegion, MapSystem, Notification, Structure,
                               StructureService)
 from corptools.providers import esi
 from django.contrib.auth.models import User
@@ -25,6 +26,148 @@ logger = logging.getLogger(__name__)
 
 MIN_DATE = datetime.min.replace(tzinfo=timezone.utc)
 MAX_DATE = datetime.max.replace(tzinfo=timezone.utc)
+
+
+class CharacterRattingTaxConfiguration(models.Model):
+    name = models.CharField(max_length=50)
+
+    tax = models.DecimalField(max_digits=5, decimal_places=2, default=5.0)
+
+    include_ess_section = models.BooleanField(default=True)
+
+    region_filter = models.ManyToManyField(MapRegion, blank=True)
+
+    class Meta:
+        verbose_name = "Tax: Character Ratting"
+        verbose_name_plural = "Tax: Character Ratting"
+
+    def __str__(self) -> str:
+        return F"{self.name}: {self.tax:,.2f}"
+
+    def get_payment_data(self, start_date=MIN_DATE, end_date=MAX_DATE, alliance_filter=None):
+        query = CharacterWalletJournalEntry.objects.filter(
+            date__gte=start_date,
+            date__lte=end_date,
+            ref_type__in=["bounty_prizes"])
+        if alliance_filter:
+            query = query.filter(
+                character__character__character_ownership__user__profile__main_character__alliance_id=alliance_filter)
+        if self.region_filter.all().count():
+            query = query.filter(
+                context_id__in=MapSystem.objects.filter(
+                    constellation__region__in=self.region_filter.all())
+            )
+        return query.exclude(taxed__processed=True)
+
+    def get_character_aggregates(self, start_date=MIN_DATE, end_date=MAX_DATE, alliance_filter=None):
+        data = self.get_payment_data(start_date, end_date, alliance_filter).values(
+            'amount',           # Player Payment
+            'tax',              # Tax Amount
+            'tax_receiver_id',  # corp that got taxed
+            'entry_id',         # Unique to not double charge
+            'date',
+            char=F('character__character__character_id'),
+            corp=F('character__character__corporation_id'),
+            char_name=F('character__character__character_name'),
+            total_ratted=((F('amount')+F('tax'))/0.6),
+            ess_reserve=((F('amount')+F('tax'))/0.6)*0.05,
+            ess_cut=((F('amount')+F('tax'))/0.6)*0.35,
+            main=F(
+                'character__character__character_ownership__user__profile__main_character__character_id'
+            ),
+            main_corp=F(
+                'character__character__character_ownership__user__profile__main_character__corporation_id'
+            )
+        )
+        output = {}
+        tax_cache = {}
+        trans_ids = set()
+        bad_transactions = []
+        for d in data:
+            if d['entry_id'] not in trans_ids:
+                cid = d['char']
+                if d['main']:
+                    cid = d['main']
+
+                if cid not in output:
+                    output[cid] = {
+                        "characters": [],
+                        "corp": d['main_corp'],
+                        "trans_ids": [],
+                        "tax_rates_used": [],
+                        "sum_earn": 0,
+                        "pre_tax_total": 0,
+                        "tax_to_pay": 0,
+                        "cnt": 0,
+                        "end": MIN_DATE,
+                        "start": MAX_DATE
+                    }
+
+                try:
+                    total_value = d['total_ratted'] - d['ess_reserve']
+                except (Exception):  # prob cause none or something
+
+                    # prob bad data from ccp we need to do math here...
+                    logger.debug(f"NO TAX or ISK Data:{d}")
+                    bad_transactions.append(d['entry_id'])
+                    continue
+
+                output[cid]["sum_earn"] += d['amount']
+                output[cid]["pre_tax_total"] += total_value
+                output[cid]["tax_to_pay"] += total_value*(self.tax/100)
+
+                output[cid]["cnt"] += 1
+
+                output[cid]["trans_ids"].append(d['entry_id'])
+
+                trans_ids.add(d['entry_id'])
+
+                if d['char_name'] not in output[cid]["characters"]:
+                    output[cid]["characters"].append(d['char_name'])
+
+                if d['date'] < output[cid]["start"]:
+                    output[cid]["start"] = d['date']
+
+                if d['date'] > output[cid]["end"]:
+                    output[cid]["end"] = d['date']
+
+        print(bad_transactions)
+        return output
+
+    def get_character_aggregates_corp_level(self, start_date=MIN_DATE, end_date=MAX_DATE, full=True, alliance_filter=None):
+        data = self.get_character_aggregates(
+            start_date, end_date, alliance_filter)
+        output = {}
+        for id, t in data.items():
+            cid = t['corp']
+            if cid not in output:
+                output[cid] = {
+                    "characters": [],
+                    "trans_ids": [],
+                    "tax_rates_used": [],
+                    "sum_earn": 0,
+                    "pre_tax_total": 0,
+                    "tax_to_pay": 0,
+                    "cnt": 0,
+                    "end": MIN_DATE,
+                    "start": MAX_DATE
+                }
+            output[cid]['characters'] += t['characters']
+            if full:
+                output[cid]['trans_ids'] += t['trans_ids']
+            for tr in t['tax_rates_used']:
+                if tr not in output[cid]['tax_rates_used']:
+                    output[cid]['tax_rates_used'].append(tr)
+            output[cid]['sum_earn'] += t['sum_earn']
+            output[cid]['pre_tax_total'] += t['pre_tax_total']
+            output[cid]['tax_to_pay'] += t['tax_to_pay']
+            output[cid]['cnt'] += t['cnt']
+            if t['start'] < output[cid]["start"]:
+                output[cid]["start"] = t['start']
+
+            if t['end'] > output[cid]["end"]:
+                output[cid]["end"] = t['start']
+        return output
 
 
 class CharacterPayoutTaxConfiguration(models.Model):
@@ -153,7 +296,7 @@ class CharacterPayoutTaxConfiguration(models.Model):
                 if d['date'] > output[cid]["end"]:
                     output[cid]["end"] = d['date']
 
-        print(bad_transactions)
+        # print(bad_transactions)
         return output
 
     def get_character_aggregates_corp_level(self, start_date=MIN_DATE, end_date=MAX_DATE, full=True, alliance_filter=None):
@@ -202,6 +345,11 @@ class CorpTaxHistory(models.Model):
 
     class Meta:
         unique_together = [['corp', 'start_date']]
+
+    @classmethod  # TODO make a manager if i want to long term use this.
+    def sync_and_get_corp_tax_list(cls, corp_id: int):
+        cls.sync_corp_tax_changes(corp_id)
+        return cls.get_corp_tax_list(corp_id)
 
     @classmethod  # TODO make a manager if i want to long term use this.
     def get_corp_tax_list(cls, corp_id: int):
@@ -561,6 +709,14 @@ class CorpTaxConfiguration(models.Model):
     def generate_corp_ref(cls, corporation, date):
         return f"{corporation.corporation_ticker}-{date.strftime('%Y%m%d')}"
 
+    @staticmethod
+    def human_format(number):
+
+        units = ['', 'K', 'M', 'B', 'T']
+        k = 1000.0
+        magnitude = int(floor(log(number, k)))
+        return '%.2f%s' % (float(number) / k**magnitude, units[magnitude])
+
     def calculate_tax(self, start_date=datetime.min, end_date=datetime.max, alliance_filter=None):
         excluded_cids = self.exempted_corps.all().values_list("corporation_id", flat=True)
         tax_invoices = {}
@@ -589,7 +745,7 @@ class CorpTaxConfiguration(models.Model):
                             }
                         tax_invoices[cid]['total_tax'] += amount
                         tax_invoices[cid]['messages'].append(
-                            f"{tax.name}: {amount:,} ({tax.tax:,.1f}% of Total Earnings)")
+                            f"{tax.name}: {self.human_format(amount)} ({tax.tax:,.1f}% of Total Earnings)")
                     char_trans_ids += data['trans_ids']
 
         for tax in self.corporate_taxes_included.all():
@@ -607,7 +763,7 @@ class CorpTaxConfiguration(models.Model):
                             }
                         tax_invoices[cid]['total_tax'] += amount
                         tax_invoices[cid]['messages'].append(
-                            f"{tax.name}: {amount:,} ({tax.tax:,.1f}% of Total Earnings)")
+                            f"{tax.name}: {self.human_format(amount)} ({tax.tax:,.1f}% of Total Earnings)")
                     corp_trans_ids += data['trans_ids']
 
         for tax in self.corporate_member_tax_included.all():
@@ -625,7 +781,7 @@ class CorpTaxConfiguration(models.Model):
 
                         tax_invoices[cid]['total_tax'] += amount
                         tax_invoices[cid]['messages'].append(
-                            f"Main Character Tax: ${amount:,} ({tax.state.name}: {data['main_count']} Mains @ {tax.isk_per_main:,} Per)")
+                            f"Main Character Tax: ${self.human_format(amount)} ({tax.state.name}: {data['main_count']} Mains @ {self.human_format(tax.isk_per_main)} Per)")
 
         for tax in self.corporate_structure_tax_included.all():
             _taxes = tax.get_invoice_data()
@@ -641,7 +797,7 @@ class CorpTaxConfiguration(models.Model):
                             }
                         tax_invoices[cid]['total_tax'] += data['tax_to_pay']
                         tax_invoices[cid]['messages'].append(
-                            f"Industry Structures Tax: ${amount:,} ({data['services_count']} Structure @ {tax.isk_per_service:,} Per)")
+                            f"Industry Structures Tax: ${self.human_format(amount)} ({data['services_count']} Structure @ {self.human_format(tax.isk_per_service)} Per)")
 
         return {"taxes": tax_invoices, "raw": output, "char_trans_ids": char_trans_ids, "corp_trans_ids": corp_trans_ids}
 
@@ -684,7 +840,7 @@ class CorpTaxConfiguration(models.Model):
             invoice = self.generate_invoice_for_ceo(
                 id, f"ref#{id}", tax['total_tax'], msg)
             total_tax += tax['total_tax']
-            print(f"## {id}: ${tax['total_tax']:,} ##\n{msg}")
+            # print(f"## {id}: ${tax['total_tax']:,} ##\n{msg}")
             invoice.save()
             try:
                 invoice.notify(message=msg, title="Alliance Taxes")

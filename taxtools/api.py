@@ -50,6 +50,19 @@ def get_char_tax_aggregates_corp(request, days=90, conf_id=1):
 
 
 @api.get(
+    "char/ratting/aggregates/corp",
+    tags=["Character Taxes"],
+)
+def get_char_tax_aggregates_corp(request, days=90, conf_id=1):
+    if not request.user.is_superuser:
+        return []
+    start = timezone.now() - timedelta(days=days)
+    t = models.CharacterRattingTaxConfiguration.objects.get(id=conf_id)
+    tx = t.get_character_aggregates_corp_level(start_date=start, full=False)
+    return tx
+
+
+@api.get(
     "corp/{corp_id}/tax/history",
     tags=["Corporation Helpers"],
 )
