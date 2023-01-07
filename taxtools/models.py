@@ -132,7 +132,7 @@ class CharacterRattingTaxConfiguration(models.Model):
                 if d['date'] > output[cid]["end"]:
                     output[cid]["end"] = d['date']
 
-        print(bad_transactions)
+        # print(bad_transactions)
         return output
 
     def get_character_aggregates_corp_level(self, start_date=MIN_DATE, end_date=MAX_DATE, full=True, alliance_filter=None):
