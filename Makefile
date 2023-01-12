@@ -25,10 +25,7 @@ test:
 
 deploy:
 	pip install twine
-	echo "[pypi]" > ~/.pypirc
-	echo "username=__token__" >> ~/.pypirc
-	echo "password=${pypi-api-token}" >> ~/.pypirc
-	cut -c-20 ~/.pypirc
+	twine upload dist/*
 
 package:
 #	cd frontend;yarn install;yarn build
