@@ -14,6 +14,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from taxtools.models import CorpTaxConfiguration
+from taxtools.tasks import send_tax_status
 
 logger = logging.getLogger(__name__)
 
@@ -63,37 +64,9 @@ class Taxes(commands.Cog):
         """
         if not sender_is_su(ctx.user):
             return await ctx.respond("Missing Permissions...", ephemeral=True)
-        await ctx.defer(ephemeral=False)
-        ct = CorpTaxConfiguration.objects.get(pk=1)
-        start, end, data = ct.get_invoice_data()
-        embed = Embed(title="Tax Pending",
-                      description="Tax yet to be invoiced since last invoice date")
-        embed.add_field(name="Start Date", value=start, inline=True)
-        embed.add_field(name="End Date", value=end, inline=True)
-        total = 0
-        for c, d in data['taxes'].items():
-            total += d['total_tax']
-        embed.add_field(name="Corps to Invoice", inline=False,
-                        value=f"{len(data['taxes'])}")
-
-        if data['raw']['ratting']:
-            embed.add_field(name="Ratting Tax", inline=True,
-                            value=f"${data['raw']['ratting']:,}")
-        if data['raw']['char']:
-            embed.add_field(name="Character Activity Tax",
-                            inline=True, value=f"${data['raw']['char']:,}")
-        if data['raw']['corp']:
-            embed.add_field(name="Corporate Activity Tax",
-                            inline=True, value=f"${data['raw']['corp']:,}")
-        if data['raw']['member']:
-            embed.add_field(name="Member Taxes", inline=True,
-                            value=f"${data['raw']['member']:,}")
-        if data['raw']['structure']:
-            embed.add_field(name="Structure Services Taxes",
-                            inline=True, value=f"${data['raw']['structure']:,}")
-
-        embed.add_field(name="Total Tax", inline=False, value=f"${total:,}")
-        await ctx.respond(embed=embed, ephemeral=False)
+        await ctx.defer(ephemeral=True)
+        send_tax_status.delay(channel_id=ctx.channel_id)
+        await ctx.respond("Requested Tax Stats!", ephemeral=True)
 
     @comp_commands.command(name='status', guild_ids=[int(settings.DISCORD_GUILD_ID)])
     async def slash_tax_status(

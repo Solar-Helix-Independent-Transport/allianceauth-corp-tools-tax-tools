@@ -1,0 +1,62 @@
+from allianceauth.authentication.models import State
+from corptools.models import EveName
+from django.core.management.base import BaseCommand
+from django_celery_beat.models import CrontabSchedule, PeriodicTask
+
+from taxtools.models import (CharacterPayoutTaxConfiguration,
+                             CharacterRattingTaxConfiguration,
+                             CorpTaxConfiguration,
+                             CorpTaxPayoutTaxConfiguration,
+                             CorpTaxPerMemberTaxConfiguration,
+                             CorpTaxPerServiceModuleConfiguration)
+from taxtools.tasks import send_taxes
+
+
+class Command(BaseCommand):
+    help = 'Bootstrap the Tax Module'
+
+    def handle(self, *args, **options):
+        self.stdout.write("Checking for Taxes!")
+
+        ct = CorpTaxConfiguration.objects.get(pk=1)
+        taxes = {}
+        for tax in ct.character_ratting_included.all():
+            _type = "Ratting"
+            if _type not in taxes:
+                taxes[_type] = []
+            taxes[_type].append(str(tax))
+
+        for tax in ct.character_taxes_included.all():
+            _type = "Character Activity"
+            if _type not in taxes:
+                taxes[_type] = []
+            taxes[_type].append(str(tax))
+
+        for tax in ct.corporate_taxes_included.all():
+            _type = "Corporate Activity"
+            if _type not in taxes:
+                taxes[_type] = []
+            taxes[_type].append(str(tax))
+
+        for tax in ct.corporate_member_tax_included.all():
+            _type = "Corporate Members"
+            if _type not in taxes:
+                taxes[_type] = []
+            taxes[_type].append(str(tax))
+
+        for tax in ct.corporate_structure_tax_included.all():
+            _type = "Structure Services"
+            if _type not in taxes:
+                taxes[_type] = []
+            taxes[_type].append(str(tax))
+
+        self.stdout.write(
+            f"Tax Status! See below configured taxes for `{ct.Name}`!")
+        for t, d in taxes.items():
+            self.stdout.write(f"{t}")
+            for _t in d:
+                self.stdout.write(f"  {_t}")
+
+        corps = ", ".join(ct.exempted_corps.all().values_list(
+            "corporation_name", flat=True))
+        self.stdout.write(f"Exempted Corps: {corps}")

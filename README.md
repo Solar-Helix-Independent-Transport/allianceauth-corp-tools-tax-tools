@@ -1,3 +1,3 @@
 # Tax Tools
 
-Requires Corptools for and the wallet module enabled
+Requires Corptools for data with the wallet module enabled

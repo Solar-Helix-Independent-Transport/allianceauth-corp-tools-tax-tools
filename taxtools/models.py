@@ -877,8 +877,7 @@ class CorpTaxConfiguration(models.Model):
         return start_date, end_date, self.calculate_tax(start_date=start_date, end_date=end_date)
 
     def send_invoices(self):
-        start_date, end_date, taxes = self.get_invoice_data(
-            start_date=start_date, end_date=end_date)
+        start_date, end_date, taxes = self.get_invoice_data()
         total_tax = 0
         for id, tax in taxes['taxes'].items():
             msg = "\n".join(tax['messages'])
