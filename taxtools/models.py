@@ -44,7 +44,23 @@ class CharacterRattingTaxConfiguration(models.Model):
     def __str__(self) -> str:
         regions = "`, `".join(
             self.region_filter.all().values_list("name", flat=True))
+        if not len(regions):
+            regions = "Everywhere"
+        return F"{self.name}: {self.tax:,.2f}% in:{regions}"
+
+    def __str_discord__(self) -> str:
+        regions = "`, `".join(
+            self.region_filter.all().values_list("name", flat=True))
+        if not len(regions):
+            regions = "Everywhere"
         return F"**{self.name}** `{self.tax:,.2f}`% in:\n`{regions}`"
+
+    def __str_console__(self) -> str:
+        regions = "`, `".join(
+            self.region_filter.all().values_list("name", flat=True))
+        if not len(regions):
+            regions = "Everywhere"
+        return F"{self.name} \033[31m{self.tax:,.2f}%\033[39m in:\033[32m{regions}\033[32m"
 
     def get_payment_data(self, start_date=MIN_DATE, end_date=MAX_DATE, alliance_filter=None):
         query = CharacterWalletJournalEntry.objects.filter(
@@ -199,7 +215,13 @@ class CharacterPayoutTaxConfiguration(models.Model):
         verbose_name_plural = "Tax: Character Wallet"
 
     def __str__(self) -> str:
+        return F"{self.name} {self.tax:,.2f}% of {self.wallet_transaction_type} from {self.corporation.name if self.corporation else 'all'}"
+
+    def __str_discord__(self) -> str:
         return F"**{self.name}**\n`{self.tax:,.2f}`% of `{self.wallet_transaction_type}` from `{self.corporation.name if self.corporation else 'all'}`"
+
+    def __str_console__(self) -> str:
+        return F"{self.name} \033[31m{self.tax:,.2f}%\033[39m of \033[32m{self.wallet_transaction_type}\033[39m from \033[32m{self.corporation.name if self.corporation else 'all'}\033[39m"
 
     def get_payment_data(self, start_date=MIN_DATE, end_date=MAX_DATE, alliance_filter=None):
         ref_types = self.wallet_transaction_type.split(",")
@@ -455,7 +477,13 @@ class CorpTaxPayoutTaxConfiguration(models.Model):
         verbose_name_plural = "Tax: Corporate Wallet"
 
     def __str__(self) -> str:
+        return F"{self.name} {self.tax:,.2f}% of {self.wallet_transaction_type} from {self.corporation.name if self.corporation else 'all'}"
+
+    def __str_discord__(self) -> str:
         return F"**{self.name}**\n`{self.tax:,.2f}`% of `{self.wallet_transaction_type}` from `{self.corporation.name if self.corporation else 'all'}`"
+
+    def __str_console__(self) -> str:
+        return F"{self.name} \033[31m{self.tax:,.2f}%\033[39m of \033[32m{self.wallet_transaction_type}\033[39m from \033[32m{self.corporation.name if self.corporation else 'all'}\033[39m"
 
     def get_payment_data(self, start_date=datetime.min, end_date=datetime.max, alliance_filter=None):
         return CorporationWalletJournalEntry.objects.filter(
@@ -542,7 +570,13 @@ class CorpTaxPerMemberTaxConfiguration(models.Model):
         verbose_name_plural = "Tax: Corp Member Main"
 
     def __str__(self) -> str:
+        return F"{self.state} @ ${self.isk_per_main:,.2f} per main"
+
+    def __str_discord__(self) -> str:
         return F"**{self.state}** @ `${self.isk_per_main:,.2f}` per main"
+
+    def __str_console__(self) -> str:
+        return F"\033[32m{self.state}\033[39m @ \033[31m${self.isk_per_main:,.2f}\033[39m per main"
 
     def get_main_counts(self):
         characters = EveCharacter.objects.filter(
@@ -606,7 +640,21 @@ class CorpTaxPerServiceModuleConfiguration(models.Model):
     def __str__(self) -> str:
         regions = "`, `".join(
             self.region_filter.all().values_list("name", flat=True))
+        return F"{self.isk_per_service:,.2f} per:{self.module_filters} For structures in: {regions}"
+
+    def __str_discord__(self) -> str:
+        regions = "`, `".join(
+            self.region_filter.all().values_list("name", flat=True))
+        if not len(regions):
+            regions = "All"
         return F"`{self.isk_per_service:,.2f}` per:\n`{self.module_filters}`\nFor structures in:\n`{regions}`"
+
+    def __str_console__(self) -> str:
+        regions = "`, `".join(
+            self.region_filter.all().values_list("name", flat=True))
+        if not len(regions):
+            regions = "All"
+        return F"\033[31m{self.isk_per_service:,.2f}\033[39m per:\033[32m{self.module_filters}\033[39m For structures in: \033[32m{regions}\033[39m"
 
     class Meta:
         verbose_name = "Tax: Structure Service"

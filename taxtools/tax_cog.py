@@ -85,31 +85,31 @@ class Taxes(commands.Cog):
             _type = "Ratting"
             if _type not in taxes:
                 taxes[_type] = []
-            taxes[_type].append(str(tax))
+            taxes[_type].append(tax.__str_discord__())
 
         for tax in ct.character_taxes_included.all():
             _type = "Character Activity"
             if _type not in taxes:
                 taxes[_type] = []
-            taxes[_type].append(str(tax))
+            taxes[_type].append(tax.__str_discord__())
 
         for tax in ct.corporate_taxes_included.all():
             _type = "Corporate Activity"
             if _type not in taxes:
                 taxes[_type] = []
-            taxes[_type].append(str(tax))
+            taxes[_type].append(tax.__str_discord__())
 
         for tax in ct.corporate_member_tax_included.all():
             _type = "Corporate Members"
             if _type not in taxes:
                 taxes[_type] = []
-            taxes[_type].append(str(tax))
+            taxes[_type].append(tax.__str_discord__())
 
         for tax in ct.corporate_structure_tax_included.all():
             _type = "Structure Services"
             if _type not in taxes:
                 taxes[_type] = []
-            taxes[_type].append(str(tax))
+            taxes[_type].append(tax.__str_discord__())
 
         embed = Embed(title="Tax Status!",
                       description=f"See below configured taxes for `{ct.Name}`!")
@@ -118,6 +118,9 @@ class Taxes(commands.Cog):
 
         corps = "`, `".join(ct.exempted_corps.all().values_list(
             "corporation_name", flat=True))
+        if not len(corps):
+            corps = "None"
+
         embed.add_field(name="Exempted Corps", value=f"`{corps}`")
 
         await ctx.respond(embed=embed, ephemeral=False)
