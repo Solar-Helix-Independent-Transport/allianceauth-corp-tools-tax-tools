@@ -31,7 +31,7 @@ deploy:
 	cut -c-20 ~/.pypirc
 
 package:
-	cd frontend;yarn install;yarn build
+#	cd frontend;yarn install;yarn build
 	python setup.py sdist
 
 devjs:
