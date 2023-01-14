@@ -7,7 +7,9 @@ from math import floor, log
 
 import yaml
 from allianceauth.authentication.models import State
-from allianceauth.eveonline.models import EveCharacter, EveCorporationInfo
+from allianceauth.eveonline.models import (EveAllianceInfo, EveCharacter,
+                                           EveCorporationInfo)
+from allianceauth.eveonline.providers import Corporation
 from corptools.models import (CharacterWalletJournalEntry, CorporationAudit,
                               CorporationWalletJournalEntry, EveName,
                               MapRegion, MapSystem, Notification, Structure,
@@ -746,6 +748,8 @@ class CorpTaxConfiguration(models.Model):
 
     exempted_corps = models.ManyToManyField(EveCorporationInfo, blank=True)
 
+    included_alliances = models.ManyToManyField(EveAllianceInfo, blank=True)
+
     def __str__(self) -> str:
         return F"{self.Name}"
 
@@ -761,8 +765,8 @@ class CorpTaxConfiguration(models.Model):
             return datetime.min + timedelta(days=5)
 
     @classmethod
-    def generate_corp_ref(cls, corporation, date):
-        return f"{corporation.corporation_ticker}-{date.strftime('%Y%m%d')}"
+    def generate_corp_ref(cls, corporation: Corporation, date):
+        return f"{corporation.ticker}-{date.strftime('%Y%m%d')}"
 
     @staticmethod
     def human_format(number):
@@ -907,8 +911,6 @@ class CorpTaxConfiguration(models.Model):
         corp = EveCorporationInfo.provider.get_corporation(corp_id)
         character = EveCharacter.objects.get_character_by_id(corp.ceo_id)
         if not character:
-            if not corp.ceo_id:
-                corp.update_corporation()
             character = EveCharacter.objects.create_character(corp.ceo_id)
         return Invoice(character=character,
                        amount=amount,
@@ -922,7 +924,11 @@ class CorpTaxConfiguration(models.Model):
             self.get_last_invoice_date() - timedelta(days=2)
         )
         end_date = self.sanitize_date(tzone.now())
-        return start_date, end_date, self.calculate_tax(start_date=start_date, end_date=end_date)
+        alliances = None
+        if self.included_alliances.all().count():
+            alliances = self.included_alliances.all().values_list("alliance_id", flat=True)
+
+        return start_date, end_date, self.calculate_tax(start_date=start_date, end_date=end_date, alliance_filter=alliances)
 
     def send_invoices(self):
         start_date, end_date, taxes = self.get_invoice_data()
