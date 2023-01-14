@@ -71,7 +71,7 @@ class CharacterRattingTaxConfiguration(models.Model):
             ref_type__in=["bounty_prizes"])
         if alliance_filter:
             query = query.filter(
-                character__character__character_ownership__user__profile__main_character__alliance_id=alliance_filter)
+                character__character__character_ownership__user__profile__main_character__alliance_id__in=alliance_filter)
         if self.region_filter.all().count():
             query = query.filter(
                 context_id__in=MapSystem.objects.filter(
@@ -235,7 +235,7 @@ class CharacterPayoutTaxConfiguration(models.Model):
             query = query.filter(first_party_name_id=self.corporation_id)
         if alliance_filter:
             query = query.filter(
-                character__character__character_ownership__user__profile__main_character__alliance_id=alliance_filter)
+                character__character__character_ownership__user__profile__main_character__alliance_id__in=alliance_filter)
         return query.exclude(taxed__processed=True)
 
     def get_character_aggregates(self, start_date=MIN_DATE, end_date=MAX_DATE, alliance_filter=None):
