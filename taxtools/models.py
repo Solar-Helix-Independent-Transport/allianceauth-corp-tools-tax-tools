@@ -904,7 +904,7 @@ class CorpTaxConfiguration(models.Model):
     def generate_invoice_for_ceo(cls, corp_id, ref, amount, message):
         # generate an invoice and return it
         due = tzone.now() + timedelta(days=14)
-        corp = EveCorporationInfo.objects.get(corporation_id=corp_id)
+        corp = EveCorporationInfo.provider.get_corporation(corp_id)
         character = EveCharacter.objects.get_character_by_id(corp.ceo_id)
         if not character:
             if not corp.ceo_id:
