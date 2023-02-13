@@ -794,6 +794,7 @@ class CorpTaxConfiguration(models.Model):
             "total_tax": 0
         }
 
+        logging.debug("TAXTOOLS: Starting character_ratting_included")
         for tax in self.character_ratting_included.all():
             _taxes = tax.get_character_aggregates_corp_level(
                 start_date=start_date, end_date=end_date, alliance_filter=alliance_filter)
@@ -814,6 +815,7 @@ class CorpTaxConfiguration(models.Model):
                             f"{tax.name}: {self.human_format(amount)} ({tax.tax:,.1f}% of Total Earnings)")
                     char_trans_ids += data['trans_ids']
 
+        logging.debug("TAXTOOLS: Starting character_taxes_included")
         for tax in self.character_taxes_included.all():
             _taxes = tax.get_character_aggregates_corp_level(
                 start_date=start_date, end_date=end_date, alliance_filter=alliance_filter)
@@ -834,6 +836,7 @@ class CorpTaxConfiguration(models.Model):
                             f"{tax.name}: {self.human_format(amount)} ({tax.tax:,.1f}% of Total Earnings)")
                     char_trans_ids += data['trans_ids']
 
+        logging.debug("TAXTOOLS: Starting corporate_taxes_included")
         for tax in self.corporate_taxes_included.all():
             _taxes = tax.get_aggregates(
                 start_date=start_date, end_date=end_date, alliance_filter=alliance_filter)
@@ -854,6 +857,7 @@ class CorpTaxConfiguration(models.Model):
                             f"{tax.name}: {self.human_format(amount)} ({tax.tax:,.1f}% of Total Earnings)")
                     corp_trans_ids += data['trans_ids']
 
+        logging.debug("TAXTOOLS: Starting corporate_member_tax_included")
         for tax in self.corporate_member_tax_included.all():
             _taxes = tax.get_invoice_data()
             output["corp_member_tax"].append(_taxes)
@@ -872,7 +876,7 @@ class CorpTaxConfiguration(models.Model):
                         output['member'] += amount
                         tax_invoices[cid]['messages'].append(
                             f"Main Character Tax: ${self.human_format(amount)} ({tax.state.name}: {data['main_count']} Mains @ {self.human_format(tax.isk_per_main)} Per)")
-
+        logging.debug("TAXTOOLS: Starting corporate_structure_tax_included")
         for tax in self.corporate_structure_tax_included.all():
             _taxes = tax.get_invoice_data()
             output["corp_structure_tax"].append(_taxes)
@@ -891,7 +895,7 @@ class CorpTaxConfiguration(models.Model):
 
                         tax_invoices[cid]['messages'].append(
                             f"Industry Structures Tax: ${self.human_format(amount)} ({data['services_count']} Structure @ {self.human_format(tax.isk_per_service)} Per)")
-
+        logging.debug("TAXTOOLS: Done corporate_structure_tax_included")
         return {"taxes": tax_invoices, "raw": output, "char_trans_ids": char_trans_ids, "corp_trans_ids": corp_trans_ids}
 
     @classmethod
