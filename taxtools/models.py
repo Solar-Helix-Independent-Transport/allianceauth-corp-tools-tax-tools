@@ -127,7 +127,6 @@ class CharacterRattingTaxConfiguration(models.Model):
                 try:
                     total_value = d['total_ratted'] - d['ess_cut']
                 except (Exception) as e:  # prob cause none or something
-
                     # prob bad data from ccp we need to do math here...
                     logger.debug(f"NO TAX or ISK Data:{d} {e}")
                     bad_transactions.append(d['entry_id'])
@@ -537,8 +536,10 @@ class CorpTaxPayoutTaxConfiguration(models.Model):
                         "end": MIN_DATE,
                         "start": MAX_DATE
                     }
+                total_value = w.amount
 
-                total_value = w.amount/(Decimal(rate/100))
+                if rate > 0:
+                    total_value = w.amount/(Decimal(rate/100))
 
                 output[cid]["sum_earn"] += w.amount
                 output[cid]["pre_tax_total"] += total_value
@@ -675,8 +676,11 @@ class CorpTaxPerServiceModuleConfiguration(models.Model):
         structure_services = StructureService.objects.filter(
             name__in=services
         )
+
+        update_time_filter = timezone.now() - datetime.timedelta(days=7)
         structures = Structure.objects.filter(
-            pk__in=structure_services.values_list("structure_id")
+            pk__in=structure_services.values_list("structure_id"),
+            corporation__last_update_structures__gte=update_time_filter
         )
         if self.region_filter.count() > 0:
             structures = structures.filter(
