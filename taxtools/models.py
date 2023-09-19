@@ -125,7 +125,10 @@ class CharacterRattingTaxConfiguration(models.Model):
                     }
 
                 try:
-                    total_value = d['total_ratted'] - d['ess_cut']
+                    total_value = d['total_ratted']
+                    if not self.include_ess_section:
+                        total_value -= d['ess_cut']
+
                 except (Exception) as e:  # prob cause none or something
                     # prob bad data from ccp we need to do math here...
                     logger.debug(f"NO TAX or ISK Data:{d} {e}")
