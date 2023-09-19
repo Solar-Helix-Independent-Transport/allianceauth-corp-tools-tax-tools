@@ -125,8 +125,8 @@ class CharacterRattingTaxConfiguration(models.Model):
                     }
 
                 try:
-                    total_value = d['total_ratted'] * \
-                        0.95  # minus the 5% Reserve ESS cut
+                    total_value = d['total_ratted'] * Decimal(0.95)
+                    # minus the 5% Reserve ESS cut
                     if not self.include_ess_section:
                         total_value -= d['ess_cut']
 
