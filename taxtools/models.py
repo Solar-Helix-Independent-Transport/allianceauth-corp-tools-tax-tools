@@ -683,7 +683,7 @@ class CorpTaxPerServiceModuleConfiguration(models.Model):
             name__in=services
         )
 
-        update_time_filter = tzone.now() - datetime.timedelta(days=7)
+        update_time_filter = tzone.now() - timedelta(days=7)
         structures = Structure.objects.filter(
             pk__in=structure_services.values_list("structure_id"),
             corporation__last_update_structures__gte=update_time_filter
