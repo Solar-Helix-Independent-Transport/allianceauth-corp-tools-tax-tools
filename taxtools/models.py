@@ -90,9 +90,9 @@ class CharacterRattingTaxConfiguration(models.Model):
             corp=F('character__character__corporation_id'),
             char_name=F('character__character__character_name'),
             total_ratted=ExpressionWrapper(
-                ((F('amount')+F('tax'))/0.6), output_field=models.DecimalField()),
+                ((F('amount')+F('tax'))/0.6), output_field=models.DecimalField()),  # Value before ESS
             ess_cut=ExpressionWrapper(
-                ((F('amount')+F('tax'))/0.6)*0.35, output_field=models.DecimalField()),
+                ((F('amount')+F('tax'))/0.6)*0.35, output_field=models.DecimalField()),  # Value ESS Returned to player
             main=F(
                 'character__character__character_ownership__user__profile__main_character__character_id'
             ),
@@ -125,13 +125,15 @@ class CharacterRattingTaxConfiguration(models.Model):
                     }
 
                 try:
-                    total_value = d['total_ratted']
+                    total_value = d['total_ratted'] * \
+                        0.95  # minus the 5% Reserve ESS cut
                     if not self.include_ess_section:
                         total_value -= d['ess_cut']
 
                 except (Exception) as e:  # prob cause none or something
                     # prob bad data from ccp we need to do math here...
-                    logger.debug(f"NO TAX or ISK Data:{d} {e}")
+                    # need more data to math this...
+                    logger.warning(f"TAXTOOLS: NO TAX or ISK Data:{d} {e}")
                     bad_transactions.append(d['entry_id'])
                     continue
 
@@ -154,7 +156,7 @@ class CharacterRattingTaxConfiguration(models.Model):
                 if d['date'] > output[cid]["end"]:
                     output[cid]["end"] = d['date']
 
-        # print(bad_transactions)
+        logger.warning(f"TAXTOOLS: Bad Transactions: {bad_transactions}")
         return output
 
     def get_character_aggregates_corp_level(self, start_date=MIN_DATE, end_date=MAX_DATE, full=True, alliance_filter=None):
@@ -303,7 +305,8 @@ class CharacterPayoutTaxConfiguration(models.Model):
                     if d['tax']:
                         total_value = d['tax']
                     else:
-                        logger.debug(f"NO TAX or ISK Tax:{rate}% Data:{d}")
+                        logger.debug(
+                            f"TAXTOOLS: NO TAX or ISK Tax:{rate}% Data:{d}")
                         bad_transactions.append(d['entry_id'])
                         continue
 
