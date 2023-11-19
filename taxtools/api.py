@@ -5,7 +5,6 @@ from typing import List
 from allianceauth.eveonline.models import EveCharacter
 from corptools.models import EveItemType, EveLocation
 from corptools.providers import esi
-from corptools.schema import CharacterWalletEvent
 from corptools.task_helpers.corp_helpers import get_corp_token
 from django.conf import settings
 from django.utils import timezone
