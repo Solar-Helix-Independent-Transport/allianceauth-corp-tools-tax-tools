@@ -1105,7 +1105,7 @@ class CorpTaxConfiguration(models.Model):
         return taxes
 
     def rerun_taxes(self, record_id: int, alliance_filter=None):
-        record = CorpTaxHistory.objects.get(id=record_id)
+        record = CorpTaxRecord.objects.get(id=record_id)
         data = json.loads(record.json_dump)
         # data['char_trans_ids']
         # data['corp_trans_ids']
