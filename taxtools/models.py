@@ -451,7 +451,7 @@ class CharacterPayoutTaxConfiguration(models.Model):
                 output[cid]["end"] = t['start']
         return output
 
-    def get_character_aggregates_corp_level_from_id(self, ids, full=True, alliance_filter=None):
+    def get_character_aggregates_corp_level_id(self, ids, full=True, alliance_filter=None):
         logger.debug(
             f"TAXTOOLS: Started get_character_aggregates_corp_level_from_ids {self.__str_console__()}")
         data = self.get_character_aggregates_ids(
