@@ -1106,7 +1106,7 @@ class CorpTaxConfiguration(models.Model):
 
     def rerun_taxes(self, record_id: int, alliance_filter=None):
         record = CorpTaxRecord.objects.get(id=record_id)
-        data = json.loads(record.json_dump)
+        record_data = json.loads(record.json_dump)
         # data['char_trans_ids']
         # data['corp_trans_ids']
         logger.debug("TAXTOOLS: Starting rerun_taxes")
@@ -1130,7 +1130,7 @@ class CorpTaxConfiguration(models.Model):
         logger.debug("TAXTOOLS: Starting character_ratting_included")
         for tax in self.character_ratting_included.all():
             _taxes = tax.get_character_aggregates_corp_level_id(
-                data['char_trans_ids'], alliance_filter=alliance_filter)
+                record_data['char_trans_ids'], alliance_filter=alliance_filter)
             output["char_tax"].append(_taxes)
             for cid, data in _taxes.items():
                 if cid not in excluded_cids:
@@ -1151,7 +1151,7 @@ class CorpTaxConfiguration(models.Model):
         logger.debug("TAXTOOLS: Starting character_taxes_included")
         for tax in self.character_taxes_included.all():
             _taxes = tax.get_character_aggregates_corp_level_id(
-                data['char_trans_ids'], alliance_filter=alliance_filter)
+                record_data['char_trans_ids'], alliance_filter=alliance_filter)
             output["char_tax"].append(_taxes)
             for cid, data in _taxes.items():
                 if cid not in excluded_cids:
@@ -1209,7 +1209,7 @@ class CorpTaxConfiguration(models.Model):
                         tax_invoices[cid]['messages'].append(
                             f"Industry Structures Tax: ${self.human_format(amount)} ({data['services_count']} Structure @ {self.human_format(tax.isk_per_service)} Per)")
 
-        logger.debug("TAXTOOLS: Done corporate_structure_tax_included")
+        logger.debug("TAXTOOLS: Done rerun_taxes")
 
         return {"taxes": tax_invoices, "raw": output, "char_trans_ids": char_trans_ids, "corp_trans_ids": corp_trans_ids}
 
