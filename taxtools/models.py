@@ -236,14 +236,14 @@ class CharacterRattingTaxConfiguration(models.Model):
             f"TAXTOOLS: Started get_character_aggregates_corp_level {self.__str_discord__()}")
         data = self.get_character_aggregates(
             start_date, end_date, alliance_filter)
-        return self.process_character_aggregates_corp_level(data, start_date, end_date, full, alliance_filter)
+        return self.process_character_aggregates_corp_level(data, full)
 
     def get_character_aggregates_corp_level_id(self, ids, start_date=MIN_DATE, end_date=MAX_DATE, full=True, alliance_filter=None):
         logger.debug(
             f"TAXTOOLS: Started get_character_aggregates_corp_level {self.__str_discord__()}")
         data = self.get_character_aggregates_id(
             ids, alliance_filter)
-        return self.process_character_aggregates_corp_level(data, start_date, end_date, full, alliance_filter)
+        return self.process_character_aggregates_corp_level(data, full)
 
 
 class CharacterPayoutTaxConfiguration(models.Model):
