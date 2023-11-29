@@ -79,27 +79,20 @@ class CharacterRattingTaxConfiguration(models.Model):
             )
         return query.exclude(taxed__processed=True)
 
-    def get_character_aggregates(self, start_date=MIN_DATE, end_date=MAX_DATE, alliance_filter=None):
-        data = self.get_payment_data(start_date, end_date, alliance_filter).values(
-            'amount',           # Player Payment
-            'tax',              # Tax Amount
-            'tax_receiver_id',  # corp that got taxed
-            'entry_id',         # Unique to not double charge
-            'date',
-            char=F('character__character__character_id'),
-            corp=F('character__character__corporation_id'),
-            char_name=F('character__character__character_name'),
-            total_ratted=ExpressionWrapper(
-                ((F('amount')+F('tax'))/0.6), output_field=models.DecimalField()),  # Value before ESS
-            ess_cut=ExpressionWrapper(
-                ((F('amount')+F('tax'))/0.6)*0.35, output_field=models.DecimalField()),  # Value ESS Returned to player
-            main=F(
-                'character__character__character_ownership__user__profile__main_character__character_id'
-            ),
-            main_corp=F(
-                'character__character__character_ownership__user__profile__main_character__corporation_id'
+    def get_payment_data_from_ids(self, entry_ids, alliance_filter=None):
+        query = CharacterWalletJournalEntry.objects.filter(
+            ref_type__in=["bounty_prizes"])
+        if alliance_filter:
+            query = query.filter(
+                character__character__character_ownership__user__profile__main_character__alliance_id__in=alliance_filter)
+        if self.region_filter.all().count():
+            query = query.filter(
+                context_id__in=MapSystem.objects.filter(
+                    constellation__region__in=self.region_filter.all())
             )
-        )
+        return query.filter(entry_id__in=entry_ids)
+
+    def process_character_aggregates(self, data):
         output = {}
         tax_cache = {}
         trans_ids = set()
@@ -159,11 +152,53 @@ class CharacterRattingTaxConfiguration(models.Model):
         logger.warning(f"TAXTOOLS: Bad Transactions: {bad_transactions}")
         return output
 
-    def get_character_aggregates_corp_level(self, start_date=MIN_DATE, end_date=MAX_DATE, full=True, alliance_filter=None):
-        logger.debug(
-            f"TAXTOOLS: Started get_character_aggregates_corp_level {self.__str_discord__()}")
-        data = self.get_character_aggregates(
-            start_date, end_date, alliance_filter)
+    def get_character_aggregates(self, start_date=MIN_DATE, end_date=MAX_DATE, alliance_filter=None):
+        data = self.get_payment_data(start_date, end_date, alliance_filter).values(
+            'amount',           # Player Payment
+            'tax',              # Tax Amount
+            'tax_receiver_id',  # corp that got taxed
+            'entry_id',         # Unique to not double charge
+            'date',
+            char=F('character__character__character_id'),
+            corp=F('character__character__corporation_id'),
+            char_name=F('character__character__character_name'),
+            total_ratted=ExpressionWrapper(
+                ((F('amount')+F('tax'))/0.6), output_field=models.DecimalField()),  # Value before ESS
+            ess_cut=ExpressionWrapper(
+                ((F('amount')+F('tax'))/0.6)*0.35, output_field=models.DecimalField()),  # Value ESS Returned to player
+            main=F(
+                'character__character__character_ownership__user__profile__main_character__character_id'
+            ),
+            main_corp=F(
+                'character__character__character_ownership__user__profile__main_character__corporation_id'
+            )
+        )
+        return self.process_character_aggregates(data)
+
+    def get_character_aggregates_id(self, ids, alliance_filter=None):
+        data = self.get_payment_data_from_ids(ids, alliance_filter=alliance_filter).values(
+            'amount',           # Player Payment
+            'tax',              # Tax Amount
+            'tax_receiver_id',  # corp that got taxed
+            'entry_id',         # Unique to not double charge
+            'date',
+            char=F('character__character__character_id'),
+            corp=F('character__character__corporation_id'),
+            char_name=F('character__character__character_name'),
+            total_ratted=ExpressionWrapper(
+                ((F('amount')+F('tax'))/0.6), output_field=models.DecimalField()),  # Value before ESS
+            ess_cut=ExpressionWrapper(
+                ((F('amount')+F('tax'))/0.6)*0.35, output_field=models.DecimalField()),  # Value ESS Returned to player
+            main=F(
+                'character__character__character_ownership__user__profile__main_character__character_id'
+            ),
+            main_corp=F(
+                'character__character__character_ownership__user__profile__main_character__corporation_id'
+            )
+        )
+        return self.process_character_aggregates(data)
+
+    def process_character_aggregates_corp_level(self, data, full=True):
         output = {}
         for id, t in data.items():
             cid = t['corp']
@@ -195,6 +230,20 @@ class CharacterRattingTaxConfiguration(models.Model):
             if t['end'] > output[cid]["end"]:
                 output[cid]["end"] = t['start']
         return output
+
+    def get_character_aggregates_corp_level(self, start_date=MIN_DATE, end_date=MAX_DATE, full=True, alliance_filter=None):
+        logger.debug(
+            f"TAXTOOLS: Started get_character_aggregates_corp_level {self.__str_discord__()}")
+        data = self.get_character_aggregates(
+            start_date, end_date, alliance_filter)
+        return self.process_character_aggregates_corp_level(data, start_date, end_date, full, alliance_filter)
+
+    def get_character_aggregates_corp_level_ids(self, ids, start_date=MIN_DATE, end_date=MAX_DATE, full=True, alliance_filter=None):
+        logger.debug(
+            f"TAXTOOLS: Started get_character_aggregates_corp_level {self.__str_discord__()}")
+        data = self.get_character_aggregates_id(
+            ids, alliance_filter)
+        return self.process_character_aggregates_corp_level(data, start_date, end_date, full, alliance_filter)
 
 
 class CharacterPayoutTaxConfiguration(models.Model):
@@ -244,24 +293,18 @@ class CharacterPayoutTaxConfiguration(models.Model):
                 character__character__character_ownership__user__profile__main_character__alliance_id__in=alliance_filter)
         return query.exclude(taxed__processed=True)
 
-    def get_character_aggregates(self, start_date=MIN_DATE, end_date=MAX_DATE, alliance_filter=None):
-        logger.debug(
-            f"TAXTOOLS: Started get_character_aggregates {self.__str_discord__()}")
-        data = self.get_payment_data(start_date, end_date, alliance_filter).values(
-            'amount',
-            'entry_id',
-            'date',
-            'tax',
-            char=F('character__character__character_id'),
-            corp=F('character__character__corporation_id'),
-            char_name=F('character__character__character_name'),
-            main=F(
-                'character__character__character_ownership__user__profile__main_character__character_id'
-            ),
-            main_corp=F(
-                'character__character__character_ownership__user__profile__main_character__corporation_id'
-            )
-        )
+    def get_payment_data_from_ids(self, entry_ids, alliance_filter=None):
+        ref_types = self.wallet_transaction_type.split(",")
+        query = CharacterWalletJournalEntry.objects.filter(
+            ref_type__in=ref_types)
+        if self.corporation_id:
+            query = query.filter(first_party_name_id=self.corporation_id)
+        if alliance_filter:
+            query = query.filter(
+                character__character__character_ownership__user__profile__main_character__alliance_id__in=alliance_filter)
+        return query.filter(entry_id__in=entry_ids)
+
+    def process_character_aggregates(self, data, start_date=MIN_DATE, end_date=MAX_DATE, alliance_filter=None):
         output = {}
         tax_cache = {}
         trans_ids = set()
@@ -335,11 +378,47 @@ class CharacterPayoutTaxConfiguration(models.Model):
         # print(bad_transactions)
         return output
 
-    def get_character_aggregates_corp_level(self, start_date=MIN_DATE, end_date=MAX_DATE, full=True, alliance_filter=None):
+    def get_character_aggregates(self, start_date=MIN_DATE, end_date=MAX_DATE, alliance_filter=None):
         logger.debug(
-            f"TAXTOOLS: Started get_character_aggregates_corp_level {self.__str_discord__()}")
-        data = self.get_character_aggregates(
-            start_date, end_date, alliance_filter)
+            f"TAXTOOLS: Started get_character_aggregates {self.__str_console__()}")
+        data = self.get_payment_data(start_date, end_date, alliance_filter).values(
+            'amount',
+            'entry_id',
+            'date',
+            'tax',
+            char=F('character__character__character_id'),
+            corp=F('character__character__corporation_id'),
+            char_name=F('character__character__character_name'),
+            main=F(
+                'character__character__character_ownership__user__profile__main_character__character_id'
+            ),
+            main_corp=F(
+                'character__character__character_ownership__user__profile__main_character__corporation_id'
+            )
+        )
+        return self.process_character_aggregates(data, start_date=MIN_DATE, end_date=MAX_DATE, alliance_filter=None)
+
+    def get_character_aggregates_ids(self, ids, start_date=MIN_DATE, end_date=MAX_DATE, alliance_filter=None):
+        logger.debug(
+            f"TAXTOOLS: Started get_character_aggregates {self.__str_discord__()}")
+        data = self.get_payment_data_from_ids(ids, start_date, end_date, alliance_filter).values(
+            'amount',
+            'entry_id',
+            'date',
+            'tax',
+            char=F('character__character__character_id'),
+            corp=F('character__character__corporation_id'),
+            char_name=F('character__character__character_name'),
+            main=F(
+                'character__character__character_ownership__user__profile__main_character__character_id'
+            ),
+            main_corp=F(
+                'character__character__character_ownership__user__profile__main_character__corporation_id'
+            )
+        )
+        return self.process_character_aggregates(data, start_date=MIN_DATE, end_date=MAX_DATE, alliance_filter=None)
+
+    def process_character_aggregates_corp_level(self, data, start_date=MIN_DATE, end_date=MAX_DATE, full=True, alliance_filter=None):
         output = {}
         for id, t in data.items():
             cid = t['corp']
@@ -372,6 +451,20 @@ class CharacterPayoutTaxConfiguration(models.Model):
                 output[cid]["end"] = t['start']
         return output
 
+    def get_character_aggregates_corp_level_from_ids(self, ids, start_date=MIN_DATE, end_date=MAX_DATE, full=True, alliance_filter=None):
+        logger.debug(
+            f"TAXTOOLS: Started get_character_aggregates_corp_level_from_ids {self.__str_console__()}")
+        data = self.get_character_aggregates_ids(
+            ids, start_date, end_date, alliance_filter)
+        return self.process_character_aggregates_corp_level(data, start_date, end_date, full, alliance_filter)
+
+    def get_character_aggregates_corp_level(self, start_date=MIN_DATE, end_date=MAX_DATE, full=True, alliance_filter=None):
+        logger.debug(
+            f"TAXTOOLS: Started get_character_aggregates_corp_level {self.__str_console__()}")
+        data = self.get_character_aggregates(
+            start_date, end_date, alliance_filter)
+        return self.process_character_aggregates_corp_level(data, start_date, end_date, full, alliance_filter)
+
 
 # CorpTaxChangeMsg
 class CorpTaxHistory(models.Model):
@@ -385,8 +478,8 @@ class CorpTaxHistory(models.Model):
         unique_together = [['corp', 'start_date']]
 
     @classmethod  # TODO make a manager if i want to long term use this.
-    def sync_and_get_corp_tax_list(cls, corp_id: int):
-        cls.sync_corp_tax_changes(corp_id)
+    def sync_and_get_corp_tax_list(cls, corp_id: int, flush_first: bool = False):
+        cls.sync_corp_tax_changes(corp_id, flush_first=flush_first)
         return cls.get_corp_tax_list(corp_id)
 
     @classmethod  # TODO make a manager if i want to long term use this.
@@ -421,13 +514,24 @@ class CorpTaxHistory(models.Model):
             data = yaml.safe_load(n['notification_text__notification_text'])
             if data['corpID'] == corp_id:
                 t = datetime.timestamp(n['timestamp'])
+                # new notifications
+                # currencyNameLabel: 'UI/Common/ISK'
+                if "currencyNameLabel" in data:
+                    if data["currencyNameLabel"] != 'UI/Common/ISK':
+                        continue
+
                 changes[t] = {"tax_rate": data['newTaxRate'],
                               "start_date": n['timestamp']}
 
         return list(changes.values())
 
     @classmethod  # TODO make a manager if i want to long term use this.
-    def sync_corp_tax_changes(cls, corp_id: int):
+    def sync_corp_tax_changes(cls, corp_id: int, flush_first: bool = False):
+        if flush_first:
+            cls.objects.filter(
+                corp__corporation_id=corp_id
+            ).delete()
+
         corp = EveCorporationInfo.objects.get(corporation_id=corp_id)
         taxes = cls.find_corp_tax_changes(corp_id)
         db_models = []
@@ -459,10 +563,11 @@ class CorpTaxHistory(models.Model):
         return rate
 
     @classmethod
-    def sync_all_corps(cls):
+    def sync_all_corps(cls, flush_first: bool = True):
         output = {}
         for c in CorporationAudit.objects.all():
-            created = cls.sync_corp_tax_changes(c.corporation.corporation_id)
+            created = cls.sync_corp_tax_changes(
+                c.corporation.corporation_id, flush_first=flush_first)
             output[c.corporation.corporation_name] = created
         return output
 
@@ -998,6 +1103,14 @@ class CorpTaxConfiguration(models.Model):
         CorporatePayoutTaxRecord.objects.bulk_create(corp_obs)
 
         return taxes
+
+    def rerun_taxes(self):
+        data = json.loads(self.json_dump)
+        cnt = 0
+        for tax in self.character_ratting_included.all():
+            entry_ids = data["raw"]["char_tax"][cnt]["trans_ids"]
+
+            cnt += 1
 
 
 class CorporatePayoutTaxRecord(models.Model):
