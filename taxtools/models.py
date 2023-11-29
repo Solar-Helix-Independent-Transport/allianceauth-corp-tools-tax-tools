@@ -456,14 +456,14 @@ class CharacterPayoutTaxConfiguration(models.Model):
             f"TAXTOOLS: Started get_character_aggregates_corp_level_from_ids {self.__str_console__()}")
         data = self.get_character_aggregates_ids(
             ids, alliance_filter)
-        return self.process_character_aggregates_corp_level(data, full=full, alliance_filter=alliance_filter)
+        return self.process_character_aggregates_corp_level(data, full=full)
 
     def get_character_aggregates_corp_level(self, start_date=MIN_DATE, end_date=MAX_DATE, full=True, alliance_filter=None):
         logger.debug(
             f"TAXTOOLS: Started get_character_aggregates_corp_level {self.__str_console__()}")
         data = self.get_character_aggregates(
             start_date, end_date, alliance_filter)
-        return self.process_character_aggregates_corp_level(data, full=full, alliance_filter=alliance_filter)
+        return self.process_character_aggregates_corp_level(data, full=full)
 
 
 # CorpTaxChangeMsg
