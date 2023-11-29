@@ -304,7 +304,7 @@ class CharacterPayoutTaxConfiguration(models.Model):
                 character__character__character_ownership__user__profile__main_character__alliance_id__in=alliance_filter)
         return query.filter(entry_id__in=entry_ids)
 
-    def process_character_aggregates(self, data, start_date=MIN_DATE, end_date=MAX_DATE, alliance_filter=None):
+    def process_character_aggregates(self, data):
         output = {}
         tax_cache = {}
         trans_ids = set()
@@ -396,12 +396,12 @@ class CharacterPayoutTaxConfiguration(models.Model):
                 'character__character__character_ownership__user__profile__main_character__corporation_id'
             )
         )
-        return self.process_character_aggregates(data, start_date=MIN_DATE, end_date=MAX_DATE, alliance_filter=None)
+        return self.process_character_aggregates(data)
 
-    def get_character_aggregates_ids(self, ids, start_date=MIN_DATE, end_date=MAX_DATE, alliance_filter=None):
+    def get_character_aggregates_ids(self, ids, alliance_filter=None):
         logger.debug(
-            f"TAXTOOLS: Started get_character_aggregates {self.__str_discord__()}")
-        data = self.get_payment_data_from_ids(ids, start_date, end_date, alliance_filter).values(
+            f"TAXTOOLS: Started get_character_aggregates {self.__str_console__()}")
+        data = self.get_payment_data_from_ids(ids, alliance_filter).values(
             'amount',
             'entry_id',
             'date',
@@ -416,9 +416,9 @@ class CharacterPayoutTaxConfiguration(models.Model):
                 'character__character__character_ownership__user__profile__main_character__corporation_id'
             )
         )
-        return self.process_character_aggregates(data, start_date=MIN_DATE, end_date=MAX_DATE, alliance_filter=None)
+        return self.process_character_aggregates(data)
 
-    def process_character_aggregates_corp_level(self, data, start_date=MIN_DATE, end_date=MAX_DATE, full=True, alliance_filter=None):
+    def process_character_aggregates_corp_level(self, data, full=True):
         output = {}
         for id, t in data.items():
             cid = t['corp']
@@ -451,19 +451,19 @@ class CharacterPayoutTaxConfiguration(models.Model):
                 output[cid]["end"] = t['start']
         return output
 
-    def get_character_aggregates_corp_level_from_ids(self, ids, start_date=MIN_DATE, end_date=MAX_DATE, full=True, alliance_filter=None):
+    def get_character_aggregates_corp_level_from_ids(self, ids, full=True, alliance_filter=None):
         logger.debug(
             f"TAXTOOLS: Started get_character_aggregates_corp_level_from_ids {self.__str_console__()}")
         data = self.get_character_aggregates_ids(
-            ids, start_date, end_date, alliance_filter)
-        return self.process_character_aggregates_corp_level(data, start_date, end_date, full, alliance_filter)
+            ids, alliance_filter)
+        return self.process_character_aggregates_corp_level(data, full=full, alliance_filter=alliance_filter)
 
     def get_character_aggregates_corp_level(self, start_date=MIN_DATE, end_date=MAX_DATE, full=True, alliance_filter=None):
         logger.debug(
             f"TAXTOOLS: Started get_character_aggregates_corp_level {self.__str_console__()}")
         data = self.get_character_aggregates(
             start_date, end_date, alliance_filter)
-        return self.process_character_aggregates_corp_level(data, start_date, end_date, full, alliance_filter)
+        return self.process_character_aggregates_corp_level(data, full=full, alliance_filter=alliance_filter)
 
 
 # CorpTaxChangeMsg
@@ -1104,13 +1104,114 @@ class CorpTaxConfiguration(models.Model):
 
         return taxes
 
-    def rerun_taxes(self):
-        data = json.loads(self.json_dump)
-        cnt = 0
-        for tax in self.character_ratting_included.all():
-            entry_ids = data["raw"]["char_tax"][cnt]["trans_ids"]
+    def rerun_taxes(self, record_id: int, alliance_filter=None):
+        record = CorpTaxHistory.objects.get(id=record_id)
+        data = json.loads(record.json_dump)
+        # data['char_trans_ids']
+        # data['corp_trans_ids']
+        logger.debug("TAXTOOLS: Starting rerun_taxes")
+        excluded_cids = self.exempted_corps.all().values_list("corporation_id", flat=True)
+        tax_invoices = {}
+        char_trans_ids = []
+        corp_trans_ids = []
+        output = {
+            "char_tax": [],
+            "corp_tax": [],
+            "corp_member_tax": [],
+            "corp_structure_tax": [],
+            "ratting": 0,
+            "char": 0,
+            "corp": 0,
+            "member": 0,
+            "structure": 0,
+            "total_tax": 0
+        }
 
-            cnt += 1
+        logger.debug("TAXTOOLS: Starting character_ratting_included")
+        for tax in self.character_ratting_included.all():
+            _taxes = tax.get_character_aggregates_corp_level_id(
+                data['char_trans_ids'], alliance_filter=alliance_filter)
+            output["char_tax"].append(_taxes)
+            for cid, data in _taxes.items():
+                if cid not in excluded_cids:
+                    amount = round(data['tax_to_pay'], -6)
+                    if amount > 1000000:
+                        if cid not in tax_invoices:
+                            tax_invoices[cid] = {
+                                "total_tax": 0,
+                                "messages": [],
+                            }
+                        tax_invoices[cid]['total_tax'] += amount
+                        output['total_tax'] += amount
+                        output['ratting'] += amount
+                        tax_invoices[cid]['messages'].append(
+                            f"{tax.name}: {self.human_format(amount)} ({tax.tax:,.1f}% of Total Earnings)")
+                    char_trans_ids += data['trans_ids']
+
+        logger.debug("TAXTOOLS: Starting character_taxes_included")
+        for tax in self.character_taxes_included.all():
+            _taxes = tax.get_character_aggregates_corp_level_id(
+                data['char_trans_ids'], alliance_filter=alliance_filter)
+            output["char_tax"].append(_taxes)
+            for cid, data in _taxes.items():
+                if cid not in excluded_cids:
+                    amount = round(data['tax_to_pay'], -6)
+                    if amount > 1000000:
+                        if cid not in tax_invoices:
+                            tax_invoices[cid] = {
+                                "total_tax": 0,
+                                "messages": [],
+                            }
+                        tax_invoices[cid]['total_tax'] += amount
+                        output['total_tax'] += amount
+                        output['char'] += amount
+                        tax_invoices[cid]['messages'].append(
+                            f"{tax.name}: {self.human_format(amount)} ({tax.tax:,.1f}% of Total Earnings)")
+                    char_trans_ids += data['trans_ids']
+
+        logger.debug("TAXTOOLS: Starting corporate_member_tax_included")
+        for tax in self.corporate_member_tax_included.all():
+            _taxes = tax.get_invoice_data()
+            output["corp_member_tax"].append(_taxes)
+            for cid, data in _taxes.items():
+                if cid not in excluded_cids:
+                    amount = round(data['tax_to_pay'], -6)
+                    if amount > 1000000:
+                        if cid not in tax_invoices:
+                            tax_invoices[cid] = {
+                                "total_tax": 0,
+                                "messages": [],
+                            }
+
+                        tax_invoices[cid]['total_tax'] += amount
+                        output['total_tax'] += amount
+                        output['member'] += amount
+                        tax_invoices[cid]['messages'].append(
+                            f"Main Character Tax: ${self.human_format(amount)} ({tax.state.name}: {data['main_count']} Mains @ {self.human_format(tax.isk_per_main)} Per)")
+
+        logger.debug("TAXTOOLS: Starting corporate_structure_tax_included")
+        for tax in self.corporate_structure_tax_included.all():
+            _taxes = tax.get_invoice_data()
+            output["corp_structure_tax"].append(_taxes)
+            for cid, data in _taxes.items():
+                if cid not in excluded_cids:
+                    amount = round(data['tax_to_pay'], -6)
+                    if amount > 1000000:
+                        if cid not in tax_invoices:
+                            tax_invoices[cid] = {
+                                "total_tax": 0,
+                                "messages": [],
+                            }
+                        tax_invoices[cid]['total_tax'] += amount
+                        output['total_tax'] += amount
+                        output['structure'] += amount
+
+                        tax_invoices[cid]['messages'].append(
+                            f"Industry Structures Tax: ${self.human_format(amount)} ({data['services_count']} Structure @ {self.human_format(tax.isk_per_service)} Per)")
+
+        logger.debug("TAXTOOLS: Done corporate_structure_tax_included")
+
+        return {"taxes": tax_invoices, "raw": output, "char_trans_ids": char_trans_ids, "corp_trans_ids": corp_trans_ids}
 
 
 class CorporatePayoutTaxRecord(models.Model):
