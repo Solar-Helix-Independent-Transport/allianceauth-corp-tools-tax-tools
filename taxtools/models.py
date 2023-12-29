@@ -164,9 +164,9 @@ class CharacterRattingTaxConfiguration(models.Model):
             corp=F('character__character__corporation_id'),
             char_name=F('character__character__character_name'),
             total_ratted=ExpressionWrapper(
-                ((Coalesce(F('amount'), 0)+Coalesce(F('tax'), 0))/0.6), output_field=models.DecimalField()),  # Value before ESS
+                ((Coalesce('amount', 0)+Coalesce('tax', 0))/0.6), output_field=models.DecimalField()),  # Value before ESS
             ess_cut=ExpressionWrapper(
-                ((Coalesce(F('amount'), 0)+Coalesce(F('tax'), 0))/0.6)*0.35, output_field=models.DecimalField()),  # Value ESS Returned to player
+                ((Coalesce('amount', 0)+Coalesce('tax', 0))/0.6)*0.35, output_field=models.DecimalField()),  # Value ESS Returned to player
             main=F(
                 'character__character__character_ownership__user__profile__main_character__character_id'
             ),
@@ -187,9 +187,9 @@ class CharacterRattingTaxConfiguration(models.Model):
             corp=F('character__character__corporation_id'),
             char_name=F('character__character__character_name'),
             total_ratted=ExpressionWrapper(
-                ((Coalesce(F('amount'), 0)+Coalesce(F('tax'), 0))/0.6), output_field=models.DecimalField()),  # Value before ESS
+                ((Coalesce('amount', 0)+Coalesce('tax', 0))/0.6), output_field=models.DecimalField()),  # Value before ESS
             ess_cut=ExpressionWrapper(
-                ((Coalesce(F('amount'), 0)+Coalesce(F('tax'), 0))/0.6)*0.35, output_field=models.DecimalField()),  # Value ESS Returned to player
+                ((Coalesce('amount', 0)+Coalesce('tax', 0))/0.6)*0.35, output_field=models.DecimalField()),  # Value ESS Returned to player
             main=F(
                 'character__character__character_ownership__user__profile__main_character__character_id'
             ),
