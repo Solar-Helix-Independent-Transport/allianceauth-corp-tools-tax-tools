@@ -20,6 +20,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 from django.db.models import Count, ExpressionWrapper, F
+from django.db.models.functions import Coalesce
 from django.forms import model_to_dict
 from django.utils import timezone as tzone
 from invoices.models import Invoice
@@ -163,9 +164,9 @@ class CharacterRattingTaxConfiguration(models.Model):
             corp=F('character__character__corporation_id'),
             char_name=F('character__character__character_name'),
             total_ratted=ExpressionWrapper(
-                ((F('amount')+F('tax'))/0.6), output_field=models.DecimalField()),  # Value before ESS
+                ((Coalesce(F('amount'), 0)+Coalesce(F('tax'), 0))/0.6), output_field=models.DecimalField()),  # Value before ESS
             ess_cut=ExpressionWrapper(
-                ((F('amount')+F('tax'))/0.6)*0.35, output_field=models.DecimalField()),  # Value ESS Returned to player
+                ((Coalesce(F('amount'), 0)+Coalesce(F('tax'), 0))/0.6)*0.35, output_field=models.DecimalField()),  # Value ESS Returned to player
             main=F(
                 'character__character__character_ownership__user__profile__main_character__character_id'
             ),
@@ -186,9 +187,9 @@ class CharacterRattingTaxConfiguration(models.Model):
             corp=F('character__character__corporation_id'),
             char_name=F('character__character__character_name'),
             total_ratted=ExpressionWrapper(
-                ((F('amount')+F('tax'))/0.6), output_field=models.DecimalField()),  # Value before ESS
+                ((Coalesce(F('amount'), 0)+Coalesce(F('tax'), 0))/0.6), output_field=models.DecimalField()),  # Value before ESS
             ess_cut=ExpressionWrapper(
-                ((F('amount')+F('tax'))/0.6)*0.35, output_field=models.DecimalField()),  # Value ESS Returned to player
+                ((Coalesce(F('amount'), 0)+Coalesce(F('tax'), 0))/0.6)*0.35, output_field=models.DecimalField()),  # Value ESS Returned to player
             main=F(
                 'character__character__character_ownership__user__profile__main_character__character_id'
             ),
@@ -842,18 +843,13 @@ class CorpTaxRecord(models.Model):
 
 
 class ExtendedJsonEncoder(DjangoJSONEncoder):
-
     def default(self, o):
-
         if isinstance(o, User):
             return {"user_id": o.pk}
-
         if isinstance(o, models.Model):
             return model_to_dict(o)
-
         if isinstance(o, set):
             return list(o)
-
         return super().default(o)
 
 

@@ -47,7 +47,7 @@ def send_tax_status(self, config_id=1, channel_id=0):
     if not channel_id:
         return "No Channel ID set"
     from aadiscordbot.tasks import send_message
-    ct = models.CorpTaxConfiguration.objects.get(pk=1)
+    ct = models.CorpTaxConfiguration.objects.get(pk=config_id)
     start, end, data = ct.get_invoice_data()
     embed = Embed(title="Tax Pending",
                   description="Tax yet to be invoiced since last invoice date")
