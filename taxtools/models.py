@@ -853,6 +853,20 @@ class ExtendedJsonEncoder(DjangoJSONEncoder):
         return super().default(o)
 
 
+class CorporateTaxCredits(models.Model):
+    corp = models.OneToOneField(EveCorporationInfo, on_delete=models.CASCADE)
+    credit_balance = models.DecimalField(
+        max_digits=20, decimal_places=2, null=True, default=None)
+    last_updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Admin: Corporate Tax Credit"
+        verbose_name_plural = f"{verbose_name}s"
+
+    def __str__(self) -> str:
+        return F"{self.corp.corporation_name} [Credits:{self.credit_balance:,.2f}]"
+
+
 class CorpTaxConfiguration(models.Model):
     Name = models.CharField(max_length=50)
 
@@ -1056,9 +1070,46 @@ class CorpTaxConfiguration(models.Model):
 
         return start_date, end_date, self.calculate_tax(start_date=start_date, end_date=end_date, alliance_filter=alliances)
 
+    def offset_any_credits(self, corp_id, invoice):
+        """
+            Take invoice and offest credits if available
+        """
+
+        try:
+            assert (invoice)  # invoice was too little.
+            _offsets = CorporateTaxCredits.objects.get(
+                corp__corporation_id=corp_id)
+            credits = _offsets.credit_balance
+            if credits == 0:
+                return 0
+            elif credits > 0:
+                start_bal = invoice.amount
+                if credits > start_bal:
+                    # set invoice to paid
+                    invoice.note = f"{invoice.note}\n\nOriginal: Ƶ{invoice.amount:,.2f} paid in full with Credits"
+                    invoice.paid = True
+                    invoice.save()
+                    _offsets.credit_balance = _offsets.credit_balance - start_bal
+                    _offsets.save()
+                    return start_bal
+                elif credits < start_bal:
+                    # offset the total and set a new total
+                    invoice.note = f"{invoice.note}\n\nOriginal: Ƶ{invoice.amount:,.2f}\nOffset by Ƶ{credits:,.2f}"
+                    invoice.amount = invoice.amount - credits
+                    invoice.save()
+                    _offsets.credit_balance = 0
+                    _offsets.save()
+                    return credits
+                return
+        except CorporateTaxCredits.DoesNotExist:
+            return 0
+        except AssertionError:
+            return 0
+
     def send_invoices(self):
         start_date, end_date, taxes = self.get_invoice_data()
         total_tax = 0
+        total_offsets_used = 0
         for id, tax in taxes['taxes'].items():
             msg = "\n".join(tax['messages'])
             invoice = self.generate_invoice_for_ceo(
@@ -1067,10 +1118,17 @@ class CorpTaxConfiguration(models.Model):
             # print(f"## {id}: ${tax['total_tax']:,} ##\n{msg}")
             invoice.save()
             try:
-                invoice.notify(message=msg, title="Alliance Taxes")
+                total_offsets_used += self.offset_any_credits(id, invoice)
+            except Exception as e:
+                logger.error("TAXTOOLS: send_invoices offset_any_credits")
+                logger.error(e, exc_info=True)
+
+            try:
+                invoice.notify(message=invoice.note, title="Alliance Taxes")
             except ObjectDoesNotExist:
                 pass
 
+        taxes['total_credits_used'] = total_offsets_used
         record = CorpTaxRecord.objects.create(
             name=f"Alliance Taxes {end_date}",
             start_date=start_date,
