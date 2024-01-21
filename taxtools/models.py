@@ -856,7 +856,7 @@ class ExtendedJsonEncoder(DjangoJSONEncoder):
 class CorporateTaxCredits(models.Model):
     corp = models.OneToOneField(EveCorporationInfo, on_delete=models.CASCADE)
     credit_balance = models.DecimalField(
-        max_digits=20, decimal_places=2, null=True, default=None)
+        max_digits=20, decimal_places=2, default=0)
     last_updated = models.DateTimeField(auto_now=True)
 
     class Meta:
