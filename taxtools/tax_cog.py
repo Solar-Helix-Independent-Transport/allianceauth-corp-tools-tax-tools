@@ -5,13 +5,15 @@ import logging
 from typing import Optional
 
 import discord
-from allianceauth.services.modules.discord.models import DiscordUser
 from discord import Embed, SlashCommandGroup, option, ui
 from discord.ext import commands
 from discord.utils import get_or_fetch
+
 # AA Contexts
 from django.conf import settings
 from django.utils import timezone
+
+from allianceauth.services.modules.discord.models import DiscordUser
 
 from taxtools.models import CorpTaxConfiguration
 from taxtools.tasks import send_tax_status

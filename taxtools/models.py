@@ -6,15 +6,14 @@ from decimal import Decimal
 from math import floor, log
 
 import yaml
-from allianceauth.authentication.models import State
-from allianceauth.eveonline.models import (EveAllianceInfo, EveCharacter,
-                                           EveCorporationInfo)
-from allianceauth.eveonline.providers import Corporation
-from corptools.models import (CharacterWalletJournalEntry, CorporationAudit,
-                              CorporationWalletJournalEntry, EveName,
-                              MapRegion, MapSystem, Notification, Structure,
-                              StructureService)
+from corptools.models import (
+    CharacterWalletJournalEntry, CorporationAudit,
+    CorporationWalletJournalEntry, EveName, MapRegion, MapSystem, Notification,
+    Structure, StructureService,
+)
 from corptools.providers import esi
+from invoices.models import Invoice
+
 from django.contrib.auth.models import User
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.serializers.json import DjangoJSONEncoder
@@ -23,7 +22,12 @@ from django.db.models import Count, ExpressionWrapper, F
 from django.db.models.functions import Coalesce
 from django.forms import model_to_dict
 from django.utils import timezone as tzone
-from invoices.models import Invoice
+
+from allianceauth.authentication.models import State
+from allianceauth.eveonline.models import (
+    EveAllianceInfo, EveCharacter, EveCorporationInfo,
+)
+from allianceauth.eveonline.providers import Corporation
 
 logger = logging.getLogger(__name__)
 
@@ -909,7 +913,7 @@ class CorpTaxConfiguration(models.Model):
         units = ['', 'K', 'M', 'B', 'T']
         k = 1000.0
         magnitude = int(floor(log(number, k)))
-        return '%.2f%s' % (float(number) / k**magnitude, units[magnitude])
+        return f'{float(number) / k**magnitude:.2f}{units[magnitude]}'
 
     def calculate_tax(self, start_date=datetime.min, end_date=datetime.max, alliance_filter=None):
         logger.debug("TAXTOOLS: Starting calculate_tax")

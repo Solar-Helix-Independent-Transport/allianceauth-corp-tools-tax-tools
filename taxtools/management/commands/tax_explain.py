@@ -1,14 +1,15 @@
-from allianceauth.authentication.models import State
 from corptools.models import EveName
-from django.core.management.base import BaseCommand
 from django_celery_beat.models import CrontabSchedule, PeriodicTask
 
-from taxtools.models import (CharacterPayoutTaxConfiguration,
-                             CharacterRattingTaxConfiguration,
-                             CorpTaxConfiguration,
-                             CorpTaxPayoutTaxConfiguration,
-                             CorpTaxPerMemberTaxConfiguration,
-                             CorpTaxPerServiceModuleConfiguration)
+from django.core.management.base import BaseCommand
+
+from allianceauth.authentication.models import State
+
+from taxtools.models import (
+    CharacterPayoutTaxConfiguration, CharacterRattingTaxConfiguration,
+    CorpTaxConfiguration, CorpTaxPayoutTaxConfiguration,
+    CorpTaxPerMemberTaxConfiguration, CorpTaxPerServiceModuleConfiguration,
+)
 from taxtools.tasks import send_taxes
 
 

@@ -28,8 +28,9 @@ deploy:
 	twine upload dist/*
 
 package:
-#	cd frontend;yarn install;yarn build
-	python setup.py sdist
+	pip install flit
+	flit build
+
 
 devjs:
 	cd frontend;yarn install;yarn start

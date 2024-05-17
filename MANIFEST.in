@@ -1,5 +1,0 @@
-include LICENSE
-include README.md
-recursive-include taxtools/templates *
-recursive-include taxtools/static *
-recursive-include taxtools/ *.py

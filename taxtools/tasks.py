@@ -2,10 +2,12 @@ import datetime
 import json
 import logging
 
-from allianceauth.services.tasks import QueueOnce
 from celery import chain, shared_task
 from discord import Embed
+
 from django.core.cache import cache
+
+from allianceauth.services.tasks import QueueOnce
 
 from . import models
 

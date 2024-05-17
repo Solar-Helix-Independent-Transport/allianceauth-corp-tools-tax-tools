@@ -1,2 +1,6 @@
-default_app_config = 'taxtools.apps.TaxToolsConfig'
+"""
+Corp Tools - Tax Tools
+"""
+
 __version__ = "0.1.0b1"
+__title__ = "Corp Tools - Tax Tools"
