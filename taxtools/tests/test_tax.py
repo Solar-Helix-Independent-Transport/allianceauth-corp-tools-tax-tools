@@ -1,15 +1,18 @@
 from datetime import timedelta
 from unittest import mock
 
-from allianceauth.authentication.models import CharacterOwnership
-from allianceauth.eveonline.models import (EveAllianceInfo, EveCharacter,
-                                           EveCorporationInfo)
-from allianceauth.tests.auth_utils import AuthUtils
 from corptools import models as ct_models
+
 from django.contrib.auth.models import Group, User
 from django.core.cache import cache
 from django.test import TestCase
 from django.utils import timezone
+
+from allianceauth.authentication.models import CharacterOwnership
+from allianceauth.eveonline.models import (
+    EveAllianceInfo, EveCharacter, EveCorporationInfo,
+)
+from allianceauth.tests.auth_utils import AuthUtils
 
 
 class TestSecGroupBotFilters(TestCase):
