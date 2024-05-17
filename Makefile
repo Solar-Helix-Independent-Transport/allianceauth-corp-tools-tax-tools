@@ -29,7 +29,7 @@ deploy:
 
 package:
 #	cd frontend;yarn install;yarn build
-	python setup.py sdist
+	python -m build
 
 devjs:
 	cd frontend;yarn install;yarn start

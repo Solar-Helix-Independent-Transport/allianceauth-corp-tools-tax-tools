@@ -5,7 +5,7 @@
 
 Requires AllianceAuth-CorpTools
 
-1. Install from pip `pip install allianceauth-corp-tools-tax-tools`
+1. Install from pip `pip install allianceauth-corptools-tax-tools`
 2. Add `'taxtools'` to INSTALLED_APPS in local.py
 3. Run Migrations
 4. Setup
