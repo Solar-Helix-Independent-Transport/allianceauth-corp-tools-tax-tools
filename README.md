@@ -3,7 +3,7 @@
 
 ## Installation
 
-Requires AllianceAuth-CorpTools
+Requires AllianceAuth - CorpTools and AllianceAuth - Invoice Manager
 
 1. Install from pip `pip install allianceauth-corptools-tax-tools`
 2. Add `'taxtools'` to INSTALLED_APPS in local.py
