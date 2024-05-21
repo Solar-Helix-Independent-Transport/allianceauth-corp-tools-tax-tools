@@ -59,10 +59,17 @@ class Command(BaseCommand):
             for _t in d:
                 self.stdout.write(f"  {_t}")
 
-        corps = ", ".join(ct.exempted_corps.all().values_list(
+        included_alliances = ", ".join(ct.included_alliances.all().values_list(
+            "alliance_name", flat=True))
+        if not len(included_alliances):
+            included_alliances = "None"
+
+        exempted_corps = ", ".join(ct.exempted_corps.all().values_list(
             "corporation_name", flat=True))
-        if not len(corps):
-            corps = "None"
+        if not len(exempted_corps):
+            exempted_corps = "None"
+
         self.stdout.write("")
-        self.stdout.write(f"Exempted Corps: \033[32m{corps}\033[39m")
+        self.stdout.write(f"Included Alliances: \033[32m{included_alliances}\033[39m")
+        self.stdout.write(f"Exempted Corps: \033[32m{exempted_corps}\033[39m")
         self.stdout.write("Done!")
