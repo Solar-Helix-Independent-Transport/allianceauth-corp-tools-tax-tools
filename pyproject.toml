@@ -45,6 +45,7 @@ dependencies = [
     "allianceauth>=3.1,<5",
     "allianceauth-corptools>=2.5.5",
     "allianceauth-invoices>=0.1.5",
+    "py-cord>2,<3",
 ]
 
 urls.Homepage = "https://github.com/Solar-Helix-Independent-Transport/allianceauth-corp-tools-tax-tools"
