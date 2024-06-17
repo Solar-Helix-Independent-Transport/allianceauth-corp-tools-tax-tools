@@ -118,12 +118,18 @@ class Taxes(commands.Cog):
         for t, d in taxes.items():
             embed.add_field(name=t, value="\n".join(d), inline=False)
 
-        corps = "`, `".join(ct.exempted_corps.all().values_list(
-            "corporation_name", flat=True))
-        if not len(corps):
-            corps = "None"
+        included_alliances = ", ".join(ct.included_alliances.all().values_list(
+            "alliance_name", flat=True))
+        if not len(included_alliances):
+            included_alliances = "None"
 
-        embed.add_field(name="Exempted Corps", value=f"`{corps}`")
+        exempted_corps = ", ".join(ct.exempted_corps.all().values_list(
+            "corporation_name", flat=True))
+        if not len(exempted_corps):
+            exempted_corps = "None"
+
+        embed.add_field(name="Included Alliances", value=f"`{included_alliances}`")
+        embed.add_field(name="Exempted Corps", value=f"`{exempted_corps}`")
 
         await ctx.respond(embed=embed, ephemeral=False)
 
