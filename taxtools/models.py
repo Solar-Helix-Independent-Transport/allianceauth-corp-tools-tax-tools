@@ -9,7 +9,7 @@ import yaml
 from corptools.models import (
     CharacterWalletJournalEntry, CorporationAudit,
     CorporationWalletJournalEntry, EveName, MapRegion, MapSystem, Notification,
-    Structure, StructureService,
+    Structure, StructureService, EveItemType
 )
 from corptools.providers import esi
 from invoices.models import Invoice
@@ -761,13 +761,25 @@ class CorpTaxPerServiceModuleConfiguration(models.Model):
     module_filters = models.TextField(
         help_text="Comma Delimited list of service module types to Tax eg, Manufacturing (Standard),Manufacturing (Capitals),Manufacturing (Super Capitals)")
 
+    structure_type_filter = models.ManyToManyField(
+        EveItemType,
+        limit_choices_to={"group__category_id": 65},
+        blank=True
+    )
+
     region_filter = models.ManyToManyField(
         MapRegion, blank=True, help_text="Regions to limit this tax to.")
 
     def __str__(self) -> str:
-        regions = "`, `".join(
+        regions = ", ".join(
             self.region_filter.all().values_list("name", flat=True))
-        return F"{self.isk_per_service:,.2f} per:{self.module_filters} For structures in: {regions}"
+        structures = self.structure_type_filter.all().values_list("name", flat=True)
+        if len(structures):
+            structures = ", ".join(structures)
+        else:
+            structures = "All"
+        
+        return F"{self.isk_per_service:,.2f} per:{self.module_filters} For structures ({structures}) in: {regions}"
 
     def __str_discord__(self) -> str:
         regions = "`, `".join(
@@ -792,6 +804,11 @@ class CorpTaxPerServiceModuleConfiguration(models.Model):
         structure_services = StructureService.objects.filter(
             name__in=services
         )
+
+
+        if self.structure_type_filter.all().count():
+            structure_services = structure_services.filter(structure__type_name__in=self.structure_type_filter.all())
+
 
         update_time_filter = tzone.now() - timedelta(days=7)
         structures = Structure.objects.filter(

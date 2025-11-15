@@ -4,7 +4,7 @@ from . import models
 
 
 @admin.register(models.CharacterRattingTaxConfiguration)
-class CorpTaxPerServiceModuleConfigurationAdmin(admin.ModelAdmin):
+class CharacterRattingTaxConfigurationAdmin(admin.ModelAdmin):
     list_display = ['__str__', 'tax']
     filter_horizontal = ["region_filter"]
 
@@ -38,8 +38,7 @@ class CorpTaxConfigurationAdmin(admin.ModelAdmin):
 
 @admin.register(models.CorpTaxPerServiceModuleConfiguration)
 class CorpTaxPerServiceModuleConfigurationAdmin(admin.ModelAdmin):
-    filter_horizontal = ["region_filter"]
-
+    filter_horizontal = ["region_filter", "structure_type_filter"]
 
 def generate_formatter(name, str_format):
     def formatter(o): return str_format.format(getattr(o, name) or 0)
