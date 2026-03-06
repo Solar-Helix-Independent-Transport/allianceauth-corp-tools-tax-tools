@@ -8,9 +8,10 @@ from math import floor, log
 import yaml
 from corptools.models import (
     CharacterWalletJournalEntry, CorporationAudit,
-    CorporationWalletJournalEntry, EveName, MapRegion, MapSystem, Notification,
-    Structure, StructureService, EveItemType
+    CorporationWalletJournalEntry, EveName, Notification,
+    Structure, StructureService
 )
+from eve_sde.models import Region, SolarSystem, ItemType
 from corptools.providers import esi
 from invoices.models import Invoice
 
@@ -42,7 +43,7 @@ class CharacterRattingTaxConfiguration(models.Model):
 
     include_ess_section = models.BooleanField(default=True)
 
-    region_filter = models.ManyToManyField(MapRegion, blank=True)
+    region_filter = models.ManyToManyField(Region, blank=True)
 
     class Meta:
         verbose_name = "Tax: Character Ratting"
@@ -79,7 +80,7 @@ class CharacterRattingTaxConfiguration(models.Model):
                 character__character__character_ownership__user__profile__main_character__alliance_id__in=alliance_filter)
         if self.region_filter.all().count():
             query = query.filter(
-                context_id__in=MapSystem.objects.filter(
+                context_id__in=SolarSystem.objects.filter(
                     constellation__region__in=self.region_filter.all())
             )
         return query.exclude(taxed__processed=True)
@@ -92,7 +93,7 @@ class CharacterRattingTaxConfiguration(models.Model):
                 character__character__character_ownership__user__profile__main_character__alliance_id__in=alliance_filter)
         if self.region_filter.all().count():
             query = query.filter(
-                context_id__in=MapSystem.objects.filter(
+                context_id__in=SolarSystem.objects.filter(
                     constellation__region__in=self.region_filter.all())
             )
         return query.filter(entry_id__in=entry_ids)
@@ -762,13 +763,13 @@ class CorpTaxPerServiceModuleConfiguration(models.Model):
         help_text="Comma Delimited list of service module types to Tax eg, Manufacturing (Standard),Manufacturing (Capitals),Manufacturing (Super Capitals)")
 
     structure_type_filter = models.ManyToManyField(
-        EveItemType,
+        ItemType,
         limit_choices_to={"group__category_id": 65},
         blank=True
     )
 
     region_filter = models.ManyToManyField(
-        MapRegion, blank=True, help_text="Regions to limit this tax to.")
+        Region, blank=True, help_text="Regions to limit this tax to.")
 
     def __str__(self) -> str:
         regions = ", ".join(

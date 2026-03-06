@@ -1,18 +1,10 @@
 import logging
 from datetime import timedelta
-from typing import List
-
-from corptools.models import EveItemType, EveLocation
-from corptools.providers import esi
-from corptools.task_helpers.corp_helpers import get_corp_token
 from ninja import NinjaAPI
-from ninja.responses import codes_4xx
 from ninja.security import django_auth
 
-from django.conf import settings
 from django.utils import timezone
 
-from allianceauth.eveonline.models import EveCharacter
 
 from . import models
 
