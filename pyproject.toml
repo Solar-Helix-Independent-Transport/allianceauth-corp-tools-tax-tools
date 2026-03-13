@@ -45,7 +45,7 @@ dynamic = [
 ]
 dependencies = [
     "allianceauth>=3.1,<5",
-    "allianceauth-corptools>=2.5.5",
+    "allianceauth-corptools>=3.0.0b6",
     "allianceauth-invoices>=0.1.5",
     "py-cord>2,<3",
     "django-eveonline-sde"
