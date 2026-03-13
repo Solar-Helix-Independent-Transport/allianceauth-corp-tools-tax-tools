@@ -13,7 +13,8 @@ CSRF_TRUSTED_ORIGINS = [SITE_URL]
 INSTALLED_APPS += [  # noqa
     'corptools',
     'taxtools',
-    'invoices'
+    'invoices',
+    "eve_sde"
 ]
 
 ROOT_URLCONF = 'tests.urls'

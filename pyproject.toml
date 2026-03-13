@@ -3,7 +3,8 @@ build-backend = "flit_core.buildapi"
 
 requires = [
     "flit-core>=3.2,<4",
-    "allianceauth-corptools"
+    "allianceauth-corptools",
+    "django-eveonline-sde"
 ]
 
 [project]
@@ -47,6 +48,7 @@ dependencies = [
     "allianceauth-corptools>=2.5.5",
     "allianceauth-invoices>=0.1.5",
     "py-cord>2,<3",
+    "django-eveonline-sde"
 ]
 
 urls.Homepage = "https://github.com/Solar-Helix-Independent-Transport/allianceauth-corp-tools-tax-tools"
