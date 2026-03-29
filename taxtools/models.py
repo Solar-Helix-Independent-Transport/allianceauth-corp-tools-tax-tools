@@ -12,7 +12,7 @@ from corptools.models import (
     Structure, StructureService
 )
 from eve_sde.models import Region, SolarSystem, ItemType
-from corptools.providers import esi
+from corptools.providers import esi_openapi
 from invoices.models import Invoice
 
 from django.contrib.auth.models import User
@@ -323,11 +323,11 @@ class CharacterPayoutTaxConfiguration(models.Model):
                 crpid = d['corp']
                 if crpid not in tax_cache:
                     tax_cache[crpid] = CorpTaxHistory.get_corp_tax_list(crpid)
-                corp_details = esi.client.Corporation.get_corporations_corporation_id(
+                corp_details = esi_openapi.client.Corporation.GetCorporationsCorporationId(
                     corporation_id=crpid
-                ).result()
+                ).result(use_etag=False)
                 current_rate = Decimal(
-                    corp_details.get('tax_rate', 0.1)
+                    getattr(corp_details, 'tax_rate', 0.1)
                 )
                 rate = CorpTaxHistory.get_tax_rate(
                     cid, d['date'], tax_rates=tax_cache[crpid], default=current_rate*100)
@@ -630,11 +630,11 @@ class CorpTaxPayoutTaxConfiguration(models.Model):
                 cid = w.division.corporation.corporation.corporation_id
                 if cid not in tax_cache:
                     tax_cache[cid] = CorpTaxHistory.get_corp_tax_list(cid)
-                corp_details = esi.client.Corporation.get_corporations_corporation_id(
+                corp_details = esi_openapi.client.Corporation.GetCorporationsCorporationId(
                     corporation_id=cid
-                ).result()
+                ).result(use_etag=False)
                 current_rate = Decimal(
-                    corp_details.get('tax_rate', 0.1)
+                    getattr(corp_details,'tax_rate', 0.1)
                 )
                 rate = CorpTaxHistory.get_tax_rate(
                     cid, w.date, tax_rates=tax_cache[cid], default=current_rate*100)
