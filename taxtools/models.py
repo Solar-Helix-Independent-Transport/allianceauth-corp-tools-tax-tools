@@ -28,7 +28,6 @@ from allianceauth.authentication.models import State
 from allianceauth.eveonline.models import (
     EveAllianceInfo, EveCharacter, EveCorporationInfo,
 )
-from allianceauth.eveonline.providers import Corporation
 
 logger = logging.getLogger(__name__)
 
@@ -922,7 +921,7 @@ class CorpTaxConfiguration(models.Model):
             return datetime.min + timedelta(days=5)
 
     @classmethod
-    def generate_corp_ref(cls, corporation: Corporation, date):
+    def generate_corp_ref(cls, corporation, date):
         return f"{corporation.ticker}-{date.strftime('%Y%m%d')}"
 
     @staticmethod
