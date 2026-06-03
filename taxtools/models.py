@@ -233,7 +233,7 @@ class CharacterRattingTaxConfiguration(models.Model):
                 output[cid]["start"] = t['start']
 
             if t['end'] > output[cid]["end"]:
-                output[cid]["end"] = t['start']
+                output[cid]["end"] = t['end']
         return output
 
     def get_character_aggregates_corp_level(self, start_date=MIN_DATE, end_date=MAX_DATE, full=True, alliance_filter=None):
@@ -453,7 +453,7 @@ class CharacterPayoutTaxConfiguration(models.Model):
                 output[cid]["start"] = t['start']
 
             if t['end'] > output[cid]["end"]:
-                output[cid]["end"] = t['start']
+                output[cid]["end"] = t['end']
         return output
 
     def get_character_aggregates_corp_level_id(self, ids, full=True, alliance_filter=None):
@@ -620,6 +620,17 @@ class CorpTaxPayoutTaxConfiguration(models.Model):
             "second_party_name"
         )
 
+    def get_payment_data_from_ids(self, entry_ids):
+        return CorporationWalletJournalEntry.objects.filter(
+            ref_type=self.wallet_transaction_type,
+            first_party_name_id=self.corporation_id,
+            entry_id__in=entry_ids
+        ).select_related(
+            "division__corporation__corporation",
+            "first_party_name",
+            "second_party_name"
+        )
+
     def get_aggregates(self, start_date=datetime.min, end_date=datetime.max, full=True, alliance_filter=None):
         output = {}
         tax_cache = {}
@@ -660,6 +671,66 @@ class CorpTaxPayoutTaxConfiguration(models.Model):
                 output[cid]["sum_earn"] += w.amount
                 output[cid]["pre_tax_total"] += total_value
                 output[cid]["tax_to_pay"] += total_value*(self.tax/100)
+
+                output[cid]["cnt"] += 1
+
+                if full:
+                    output[cid]["trans_ids"].append(w.entry_id)
+
+                if rate not in output[cid]["tax_rates_used"]:
+                    output[cid]["tax_rates_used"].append(rate)
+
+                if w.second_party_name.name not in output[cid]["characters"]:
+                    output[cid]["characters"].append(w.second_party_name.name)
+
+                if w.date < output[cid]["start"]:
+                    output[cid]["start"] = w.date
+
+                if w.date > output[cid]["end"]:
+                    output[cid]["end"] = w.date
+
+        return output
+
+    def get_aggregates_ids(self, entry_ids, full=True):
+        output = {}
+        tax_cache = {}
+        trans_ids = set()
+        for w in self.get_payment_data_from_ids(entry_ids):
+            if w.entry_id not in trans_ids:
+                cid = w.division.corporation.corporation.corporation_id
+                if cid not in tax_cache:
+                    tax_cache[cid] = CorpTaxHistory.get_corp_tax_list(cid)
+                corp_details = esi_openapi.client.Corporation.GetCorporationsCorporationId(
+                    corporation_id=cid
+                ).result(use_etag=False)
+                current_rate = Decimal(
+                    getattr(corp_details, 'tax_rate', 0.1)
+                )
+                rate = CorpTaxHistory.get_tax_rate(
+                    cid, w.date, tax_rates=tax_cache[cid], default=current_rate*100)
+
+                trans_ids.add(w.entry_id)
+                if cid not in output:
+                    output[cid] = {
+                        "characters": [],
+                        "trans_ids": [],
+                        "tax_rates_used": [],
+                        "tax_rates": tax_cache[cid],
+                        "sum_earn": 0,
+                        "pre_tax_total": 0,
+                        "tax_to_pay": 0,
+                        "cnt": 0,
+                        "end": MIN_DATE,
+                        "start": MAX_DATE
+                    }
+                total_value = w.amount
+
+                if rate > 0:
+                    total_value = w.amount / (Decimal(rate / 100))
+
+                output[cid]["sum_earn"] += w.amount
+                output[cid]["pre_tax_total"] += total_value
+                output[cid]["tax_to_pay"] += total_value * (self.tax / 100)
 
                 output[cid]["cnt"] += 1
 
@@ -813,7 +884,7 @@ class CorpTaxPerServiceModuleConfiguration(models.Model):
         update_time_filter = tzone.now() - timedelta(days=7)
         structures = Structure.objects.filter(
             pk__in=structure_services.values_list("structure_id"),
-            corporation__last_update_structures__gte=update_time_filter
+            corporation__update_timestamps__structures__gte=update_time_filter.isoformat()
         )
         if self.region_filter.count() > 0:
             structures = structures.filter(
@@ -1243,6 +1314,27 @@ class CorpTaxConfiguration(models.Model):
                         tax_invoices[cid]['messages'].append(
                             f"{tax.name}: {self.human_format(amount)} ({tax.tax:,.1f}% of Total Earnings)")
                     char_trans_ids += data['trans_ids']
+
+        logger.debug("TAXTOOLS: Starting corporate_taxes_included")
+        for tax in self.corporate_taxes_included.all():
+            _taxes = tax.get_aggregates_ids(
+                record_data['corp_trans_ids'])
+            output["corp_tax"].append(_taxes)
+            for cid, data in _taxes.items():
+                if cid not in excluded_cids:
+                    amount = round(data['tax_to_pay'], -6)
+                    if amount > 1000000:
+                        if cid not in tax_invoices:
+                            tax_invoices[cid] = {
+                                "total_tax": 0,
+                                "messages": [],
+                            }
+                        tax_invoices[cid]['total_tax'] += amount
+                        output['total_tax'] += amount
+                        output['corp'] += amount
+                        tax_invoices[cid]['messages'].append(
+                            f"{tax.name}: {self.human_format(amount)} ({tax.tax:,.1f}% of Total Earnings)")
+                    corp_trans_ids += data['trans_ids']
 
         logger.debug("TAXTOOLS: Starting corporate_member_tax_included")
         for tax in self.corporate_member_tax_included.all():
