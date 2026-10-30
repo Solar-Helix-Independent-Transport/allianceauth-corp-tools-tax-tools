@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('corptools', '0081_characterlocation_current_ship_name_and_more'),
-        ('authentication', '0020_userprofile_language_userprofile_night_mode'),
+        ('authentication', '0025_v5squash'),
         ('taxtools', '0019_characterpayouttaxrecord_record_and_more'),
     ]
 
