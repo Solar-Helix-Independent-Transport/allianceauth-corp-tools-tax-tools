@@ -6,7 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('eveonline', '0017_alliance_and_corp_names_are_not_unique'),
+        ('eveonline', '0019_v5squash'),
         ('taxtools', '0005_rename_entry_corptaxhistory_corp'),
     ]
 
